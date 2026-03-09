@@ -7,6 +7,7 @@ import (
 	"github.com/AgusRdz/ctx/hooks"
 	"github.com/AgusRdz/ctx/install"
 	"github.com/AgusRdz/ctx/snapshot"
+	"github.com/AgusRdz/ctx/updater"
 )
 
 // version is set at build time via -ldflags "-X main.version=..."
@@ -29,6 +30,8 @@ func main() {
 		err = cmdShow()
 	case "clear":
 		err = cmdClear()
+	case "update":
+		updater.Run(version)
 	case "version", "--version", "-v":
 		fmt.Printf("ctx %s\n", version)
 	case "help", "--help", "-h":
@@ -117,6 +120,8 @@ Usage:
   ctx init --status     Check hook installation status
   ctx show              Print current snapshot
   ctx clear             Delete current snapshot
+  ctx update            Update to the latest version
+  ctx version           Show version
   ctx hook precompact   (called by Claude Code PreCompact hook)
   ctx hook session      (called by Claude Code SessionStart hook)`)
 }
