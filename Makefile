@@ -26,7 +26,11 @@ GOARCH ?= $(if $(filter arm64 aarch64,$(shell uname -m)),arm64,amd64)
 EXT := $(if $(filter windows,$(GOOS)),.exe,)
 BINARY := bin/ctx$(EXT)
 
-INSTALL_DIR := $(HOME)/bin
+ifeq ($(filter windows,$(GOOS)),windows)
+  INSTALL_DIR := $(LOCALAPPDATA)/Programs/ctx
+else
+  INSTALL_DIR := $(HOME)/bin
+endif
 install:
 	docker compose run --rm dev sh -c "CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) go build -ldflags='$(LDFLAGS)' -o $(BINARY) ./cmd"
 	mkdir -p "$(INSTALL_DIR)"
