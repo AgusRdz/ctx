@@ -1,9 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
+	"strings"
 
+	"github.com/AgusRdz/ctx/config"
 	"github.com/AgusRdz/ctx/hooks"
 	"github.com/AgusRdz/ctx/install"
 	"github.com/AgusRdz/ctx/snapshot"
@@ -30,6 +33,12 @@ func main() {
 		err = cmdShow()
 	case "clear":
 		err = cmdClear()
+	case "doctor":
+		install.Doctor()
+	case "logs":
+		err = cmdLogs()
+	case "reset":
+		err = cmdReset()
 	case "uninstall":
 		if install.ConfirmUninstall(os.Args[2:]) {
 			err = install.Uninstall()
@@ -115,6 +124,60 @@ func cmdClear() error {
 	return nil
 }
 
+func cmdLogs() error {
+	n := 20
+	logPath := config.LogFile()
+	f, err := os.Open(logPath)
+	if os.IsNotExist(err) {
+		fmt.Fprintln(os.Stderr, "ctx: no log file yet")
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("ctx: %w", err)
+	}
+	defer f.Close()
+
+	var lines []string
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	if len(lines) == 0 {
+		fmt.Fprintln(os.Stderr, "ctx: log is empty")
+		return nil
+	}
+	start := 0
+	if len(lines) > n {
+		start = len(lines) - n
+	}
+	for _, line := range lines[start:] {
+		fmt.Println(line)
+	}
+	return nil
+}
+
+func cmdReset() error {
+	dir, _ := os.Getwd()
+	fmt.Fprint(os.Stderr, "ctx: clear snapshot for [c]urrent directory, [a]ll projects, or [n] cancel? ")
+	var answer string
+	fmt.Scanln(&answer)
+	switch strings.ToLower(strings.TrimSpace(answer)) {
+	case "c", "current":
+		if err := snapshot.Clear(dir); err != nil {
+			return err
+		}
+		fmt.Fprintln(os.Stderr, "ctx: snapshot cleared for current directory")
+	case "a", "all":
+		if err := snapshot.ClearAll(); err != nil {
+			return err
+		}
+		fmt.Fprintln(os.Stderr, "ctx: all snapshots cleared")
+	default:
+		fmt.Fprintln(os.Stderr, "ctx: cancelled")
+	}
+	return nil
+}
+
 func printUsage() {
 	fmt.Fprintln(os.Stderr, `ctx — preserve Claude Code context across compactions
 
@@ -124,7 +187,10 @@ Usage:
   ctx init --status     Check hook installation status
   ctx show              Print current snapshot
   ctx clear             Delete current snapshot
-  ctx uninstall         Remove ctx completely
+  ctx reset             Clear snapshots (current directory or all projects)
+  ctx doctor            Check installation health
+  ctx logs              Show recent hook log entries
+  ctx uninstall         Remove ctx completely (hooks, data, binary)
   ctx update            Update to the latest version
   ctx version           Show version
   ctx hook precompact   (called by Claude Code PreCompact hook)
