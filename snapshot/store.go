@@ -60,3 +60,24 @@ func Clear(projectDir string) error {
 	}
 	return nil
 }
+
+// ClearAll deletes all project snapshot directories, preserving the log file.
+func ClearAll() error {
+	dataDir := config.DataDir()
+	entries, err := os.ReadDir(dataDir)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("ctx: %w", err)
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue // preserve debug.log and other top-level files
+		}
+		if err := os.RemoveAll(filepath.Join(dataDir, entry.Name())); err != nil {
+			return fmt.Errorf("ctx: %w", err)
+		}
+	}
+	return nil
+}

@@ -156,6 +156,54 @@ func TestGenerateFallback_ValidMarkdown(t *testing.T) {
 	}
 }
 
+func TestInferGoal_NoCommitsNoMD(t *testing.T) {
+	ctx := Context{
+		DiffStat:   "",
+		RecentLog:  "",
+		ProjectMD:  "",
+		ProjectDir: "/tmp/myproject",
+	}
+
+	result := GenerateFallback(ctx)
+
+	if !strings.Contains(result, "myproject") {
+		t.Errorf("expected project dir name in goal, got:\n%s", result)
+	}
+	if strings.Contains(result, "Unable to determine") {
+		t.Error("should not contain 'Unable to determine'")
+	}
+}
+
+func TestInferGoal_NoCommitsWithMD(t *testing.T) {
+	ctx := Context{
+		DiffStat:   "",
+		RecentLog:  "",
+		ProjectMD:  "# myproject\n\nA CLI tool for doing things.\n",
+		ProjectDir: "/tmp/myproject",
+	}
+
+	result := GenerateFallback(ctx)
+
+	if !strings.Contains(result, "A CLI tool for doing things.") {
+		t.Errorf("expected CLAUDE.md description as goal, got:\n%s", result)
+	}
+}
+
+func TestInferGoal_CommitsNoMD(t *testing.T) {
+	ctx := Context{
+		DiffStat:   "",
+		RecentLog:  "abc1234 feat: add login command\ndef5678 fix: handle empty input",
+		ProjectMD:  "",
+		ProjectDir: "/tmp/myproject",
+	}
+
+	result := GenerateFallback(ctx)
+
+	if !strings.Contains(result, "feat: add login command") {
+		t.Errorf("expected latest commit in goal, got:\n%s", result)
+	}
+}
+
 func TestGenerateFallback_EmptyDiffStat(t *testing.T) {
 	ctx := Context{
 		DiffStat:   "",

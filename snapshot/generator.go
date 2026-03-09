@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -79,7 +80,7 @@ func GenerateFallback(ctx Context) string {
 	}
 
 	data := SnapshotData{
-		Goal:       extractGoalFromMD(ctx.ProjectMD),
+		Goal:       inferGoal(ctx),
 		Decisions:  []string{},
 		InProgress: inProgress.String(),
 		Next:       "Review modified files and continue",
@@ -101,24 +102,35 @@ func filterGitWarnings(s string) string {
 	return strings.TrimSpace(strings.Join(filtered, "\n"))
 }
 
-// extractGoalFromMD tries to extract a meaningful goal from CLAUDE.md content.
-func extractGoalFromMD(md string) string {
-	if md == "" || md == "Not available" {
-		return "Unable to determine (claude -p unavailable)"
-	}
-	// Look for a "What it does" or first paragraph after the title
-	for _, line := range strings.Split(md, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
+// inferGoal derives the best available goal from project context without claude -p.
+// Priority: CLAUDE.md description > latest commit message > project directory name.
+func inferGoal(ctx Context) string {
+	// Try CLAUDE.md first
+	if ctx.ProjectMD != "" && ctx.ProjectMD != "Not available" {
+		for _, line := range strings.Split(ctx.ProjectMD, "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" || strings.HasPrefix(line, "#") {
+				continue
+			}
+			if len(line) > 120 {
+				return line[:120] + "..."
+			}
+			return line
 		}
-		// First non-empty, non-heading line is likely a description
-		if len(line) > 120 {
-			return line[:120] + "..."
-		}
-		return line
 	}
-	return "Unable to determine (claude -p unavailable)"
+
+	// Fall back to most recent commit message (strip the hash prefix)
+	if ctx.RecentLog != "" {
+		first := strings.SplitN(ctx.RecentLog, "\n", 2)[0]
+		parts := strings.SplitN(first, " ", 2)
+		if len(parts) == 2 && parts[1] != "" {
+			project := filepath.Base(ctx.ProjectDir)
+			return project + ": " + parts[1]
+		}
+	}
+
+	// Last resort: project directory name
+	return filepath.Base(ctx.ProjectDir) + " development"
 }
 
 // filterEnv returns a copy of env with the named variable removed.
