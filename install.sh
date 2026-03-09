@@ -2,7 +2,6 @@
 set -e
 
 REPO="AgusRdz/ctx"
-INSTALL_DIR="${CTX_INSTALL_DIR:-$HOME/bin}"
 
 # Detect OS
 OS="$(uname -s)"
@@ -21,10 +20,15 @@ case "$ARCH" in
   *) echo "unsupported architecture: $ARCH" >&2; exit 1 ;;
 esac
 
-EXT=""
+# Set install directory (Windows: AppData/Local/Programs/ctx, others: ~/bin)
 if [ "$OS" = "windows" ]; then
+  DEFAULT_DIR="$LOCALAPPDATA/Programs/ctx"
   EXT=".exe"
+else
+  DEFAULT_DIR="$HOME/bin"
+  EXT=""
 fi
+INSTALL_DIR="${CTX_INSTALL_DIR:-$DEFAULT_DIR}"
 
 BINARY="ctx-${OS}-${ARCH}${EXT}"
 
@@ -54,8 +58,12 @@ case ":$PATH:" in
   *":${INSTALL_DIR}:"*) ;;
   *)
     echo "NOTE: ${INSTALL_DIR} is not in your PATH."
-    echo "Add it with:"
-    echo "  export PATH=\"${INSTALL_DIR}:\$PATH\""
+    if [ "$OS" = "windows" ]; then
+      echo "Add it via: System Settings > Environment Variables > Path"
+    else
+      echo "Add it with:"
+      echo "  export PATH=\"${INSTALL_DIR}:\$PATH\""
+    fi
     echo ""
     ;;
 esac
