@@ -131,8 +131,8 @@ func Status() string {
 		return "Not installed (invalid hooks section)"
 	}
 
-	hasPreCompact := hasCtxHook(hooks, "PreCompact", precompactAutoCmd) || hasCtxHook(hooks, "PreCompact", precompactManualCmd)
-	hasSession := hasCtxHook(hooks, "SessionStart", sessionCmd)
+	hasPreCompact := hasCtxHook(hooks, "PreCompact", "hook precompact")
+	hasSession := hasCtxHook(hooks, "SessionStart", "hook session")
 
 	if hasPreCompact && hasSession {
 		return "Installed (PreCompact + SessionStart)"
