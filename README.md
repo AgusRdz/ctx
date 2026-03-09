@@ -1,8 +1,26 @@
 # ctx
 
-Preserve Claude Code working context across compactions.
+Keep your Claude Code session context healthy across compactions.
 
-ctx hooks into Claude Code's **PreCompact** and **SessionStart** events to automatically save and restore a structured snapshot of your session - so when context is compacted, you pick up right where you left off.
+## The problem
+
+When Claude Code hits its context window limit, it compacts the conversation — summarizing everything into a shorter form. This is necessary, but it's lossy: architectural decisions, the current task goal, what file you were editing, what to do next — all of that can get diluted or lost.
+
+This isn't a memory problem. You don't need Claude to recall past sessions from days ago. The problem is simpler: **your current session loses fidelity every time it compacts**. After two or three compactions, Claude may forget what you were building, repeat work, or contradict decisions you already made together.
+
+## What ctx does
+
+ctx hooks into Claude Code's **PreCompact** and **SessionStart** events to capture and restore a structured snapshot of your working context — automatically, every time.
+
+Before compaction, ctx extracts:
+- **Goal** — what you're building right now
+- **Decisions** — technical choices already made in this session
+- **In Progress** — what files are being modified
+- **Next** — what to do when context resumes
+
+When the session resumes after compaction (or when you start a new session in the same project), ctx restores the snapshot — so Claude picks up exactly where you left off.
+
+No configuration. No database. One snapshot per project, always the most recent.
 
 ## Install
 
@@ -10,23 +28,13 @@ ctx hooks into Claude Code's **PreCompact** and **SessionStart** events to autom
 curl -fsSL https://raw.githubusercontent.com/AgusRdz/ctx/main/install.sh | sh
 ```
 
-Or with a specific version:
-
-```sh
-CTX_VERSION=v0.1.0 curl -fsSL https://raw.githubusercontent.com/AgusRdz/ctx/main/install.sh | sh
-```
-
-## Setup
-
-Register hooks in Claude Code:
+Then register the hooks:
 
 ```sh
 ctx init
 ```
 
-That's it. ctx will now automatically:
-1. **On compaction** - generate a snapshot of your session (goal, decisions, in-progress work, next steps)
-2. **On session start** - restore the snapshot as context for Claude
+That's it. ctx works automatically from this point on.
 
 ## Commands
 
@@ -36,21 +44,20 @@ ctx init --remove     Remove hooks
 ctx init --status     Check hook installation status
 ctx show              Print current snapshot
 ctx clear             Delete current snapshot
+ctx uninstall         Remove ctx completely
 ctx update            Update to the latest version
 ctx version           Show version
 ```
 
 ## How it works
 
-When Claude Code compacts context (automatically or via `/compact`), ctx:
+1. **PreCompact hook** — Before Claude compacts, ctx reads the session transcript and git state, then calls `claude -p` to generate a semantic snapshot. If `claude -p` is unavailable, it falls back to a deterministic snapshot from git diff/log and CLAUDE.md.
 
-1. Reads the session transcript and git state
-2. Calls `claude -p` to generate a semantic summary (goal, decisions, in-progress, next)
-3. Saves the snapshot to `~/.local/share/ctx/{project-hash}/snapshot.md` (Linux/macOS) or `%LOCALAPPDATA%/ctx/{project-hash}/snapshot.md` (Windows)
+2. **SessionStart hook** — When a session starts (or resumes after compaction), ctx checks for an existing snapshot and prints it to stdout. Claude Code automatically injects this as context.
 
-When a new session starts, ctx checks for an existing snapshot and prints it to stdout - Claude Code automatically injects this as context.
-
-If `claude -p` is unavailable, ctx falls back to a deterministic snapshot using git diff/log and CLAUDE.md.
+Snapshots are stored at:
+- Linux/macOS: `~/.local/share/ctx/{project-hash}/snapshot.md`
+- Windows: `%LOCALAPPDATA%/ctx/{project-hash}/snapshot.md`
 
 ## Snapshot format
 
@@ -73,6 +80,10 @@ Building the authentication middleware
 Add token refresh endpoint and write integration tests
 ```
 
+## What ctx is NOT
+
+ctx is not a memory tool. It doesn't accumulate knowledge across sessions, index conversations, or build a searchable history. It solves one specific problem: **keeping the current session coherent when context gets compacted**. One project, one snapshot, always overwritten.
+
 ## Development
 
 Requires Docker (no local Go installation needed):
@@ -80,7 +91,7 @@ Requires Docker (no local Go installation needed):
 ```sh
 make build        # Build binary
 make test         # Run tests
-make install      # Build + install to ~/bin/
+make install      # Build + install locally
 make cross        # Cross-compile all platforms
 ```
 
