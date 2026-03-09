@@ -58,10 +58,11 @@ case ":$PATH:" in
   *":${INSTALL_DIR}:"*) ;;
   *)
     if [ "$OS" = "windows" ]; then
-      # Convert to Windows path for setx
+      # Convert to Windows path and add to user PATH
       WIN_DIR=$(cygpath -w "$INSTALL_DIR" 2>/dev/null || echo "$INSTALL_DIR")
       echo "Adding ${WIN_DIR} to your PATH..."
-      powershell.exe -Command "[Environment]::SetEnvironmentVariable('Path', [Environment]::GetEnvironmentVariable('Path', 'User') + ';${WIN_DIR}', 'User')"
+      powershell.exe -NoProfile -Command \
+        "\$dir = '${WIN_DIR}'; \$cur = [Environment]::GetEnvironmentVariable('Path','User'); if (\$cur -notlike \"*\$dir*\") { [Environment]::SetEnvironmentVariable('Path', \$cur + ';' + \$dir, 'User') }"
       echo "PATH updated. Restart your terminal for changes to take effect."
     else
       echo "NOTE: ${INSTALL_DIR} is not in your PATH."
