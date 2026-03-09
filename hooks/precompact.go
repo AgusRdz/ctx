@@ -13,9 +13,13 @@ import (
 
 // PreCompactInput is the JSON payload Claude Code sends to PreCompact hooks via stdin.
 type PreCompactInput struct {
-	SessionID    string `json:"session_id"`
-	ProjectDir   string `json:"cwd"`
-	TranscriptPath string `json:"transcript_path"`
+	SessionID         string `json:"session_id"`
+	ProjectDir        string `json:"cwd"`
+	TranscriptPath    string `json:"transcript_path"`
+	PermissionMode    string `json:"permission_mode"`
+	HookEventName     string `json:"hook_event_name"`
+	Trigger           string `json:"trigger"`
+	CustomInstructions string `json:"custom_instructions"`
 }
 
 // RunPreCompact handles the PreCompact hook invocation.
@@ -62,8 +66,12 @@ func RunPreCompact() error {
 	}
 
 	duration := time.Since(start)
-	logging.Log("precompact | trigger=auto | project=%s | duration=%.1fs | status=ok",
-		projectDir, duration.Seconds())
+	trigger := input.Trigger
+	if trigger == "" {
+		trigger = "unknown"
+	}
+	logging.Log("precompact | trigger=%s | project=%s | duration=%.1fs | status=ok",
+		trigger, projectDir, duration.Seconds())
 
 	return nil
 }

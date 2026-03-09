@@ -12,8 +12,13 @@ import (
 
 // SessionInput is the JSON payload Claude Code sends to SessionStart hooks via stdin.
 type SessionInput struct {
-	SessionID  string `json:"session_id"`
-	ProjectDir string `json:"cwd"`
+	SessionID      string `json:"session_id"`
+	ProjectDir     string `json:"cwd"`
+	TranscriptPath string `json:"transcript_path"`
+	PermissionMode string `json:"permission_mode"`
+	HookEventName  string `json:"hook_event_name"`
+	Source         string `json:"source"`
+	Model          string `json:"model"`
 }
 
 // RunSession handles the SessionStart hook invocation.
