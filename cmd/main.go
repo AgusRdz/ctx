@@ -9,6 +9,9 @@ import (
 	"github.com/AgusRdz/ctx/snapshot"
 )
 
+// version is set at build time via -ldflags "-X main.version=..."
+var version = "dev"
+
 func main() {
 	if len(os.Args) < 2 {
 		printUsage()
@@ -26,6 +29,8 @@ func main() {
 		err = cmdShow()
 	case "clear":
 		err = cmdClear()
+	case "version", "--version", "-v":
+		fmt.Printf("ctx %s\n", version)
 	case "help", "--help", "-h":
 		printUsage()
 	default:

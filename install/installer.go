@@ -29,8 +29,29 @@ type HookGroup struct {
 // We only care about the hooks field; the rest is preserved as-is.
 type Settings map[string]interface{}
 
-const precompactCmd = "ctx hook precompact"
-const sessionCmd = "ctx hook session"
+// ctxBinaryPath returns the full path to the running ctx binary, with forward slashes.
+func ctxBinaryPath() string {
+	exe, err := os.Executable()
+	if err != nil {
+		return "ctx"
+	}
+	exe, err = filepath.EvalSymlinks(exe)
+	if err != nil {
+		return "ctx"
+	}
+	return filepath.ToSlash(exe)
+}
+
+var precompactAutoCmd = ""
+var precompactManualCmd = ""
+var sessionCmd = ""
+
+func init() {
+	bin := ctxBinaryPath()
+	precompactAutoCmd = fmt.Sprintf(`"%s" hook precompact --trigger=auto`, bin)
+	precompactManualCmd = fmt.Sprintf(`"%s" hook precompact --trigger=manual`, bin)
+	sessionCmd = fmt.Sprintf(`"%s" hook session`, bin)
+}
 
 // Install adds ctx hooks to Claude Code settings.json.
 func Install() error {
@@ -41,13 +62,15 @@ func Install() error {
 
 	hooks := getOrCreateHooksMap(settings)
 
-	// Add PreCompact hook
+	// Add PreCompact hook (both auto and manual matchers)
 	hooks["PreCompact"] = []interface{}{
 		map[string]interface{}{
 			"matcher": "auto",
-			"hooks": []interface{}{
-				map[string]interface{}{"type": "command", "command": precompactCmd},
-			},
+			"hooks":   []interface{}{map[string]interface{}{"type": "command", "command": precompactAutoCmd}},
+		},
+		map[string]interface{}{
+			"matcher": "manual",
+			"hooks":   []interface{}{map[string]interface{}{"type": "command", "command": precompactManualCmd}},
 		},
 	}
 
@@ -108,7 +131,7 @@ func Status() string {
 		return "Not installed (invalid hooks section)"
 	}
 
-	hasPreCompact := hasCtxHook(hooks, "PreCompact", precompactCmd)
+	hasPreCompact := hasCtxHook(hooks, "PreCompact", precompactAutoCmd) || hasCtxHook(hooks, "PreCompact", precompactManualCmd)
 	hasSession := hasCtxHook(hooks, "SessionStart", sessionCmd)
 
 	if hasPreCompact && hasSession {

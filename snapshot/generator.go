@@ -3,6 +3,7 @@ package snapshot
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 )
@@ -42,6 +43,8 @@ func Generate(ctx Context, transcriptLines string) (string, error) {
 
 	cmd := exec.Command("claude", "-p", prompt)
 	cmd.Dir = ctx.ProjectDir
+	// Clear CLAUDECODE env var to allow nested claude -p invocation
+	cmd.Env = filterEnv(os.Environ(), "CLAUDECODE")
 	out, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("ctx: claude -p failed: %w", err)
@@ -59,13 +62,75 @@ func Generate(ctx Context, transcriptLines string) (string, error) {
 
 // GenerateFallback creates a deterministic snapshot without calling claude -p.
 func GenerateFallback(ctx Context) string {
+	// Filter git warnings from DiffStat
+	diffStat := filterGitWarnings(ctx.DiffStat)
+
+	// Build In Progress from DiffStat and RecentLog
+	var inProgress strings.Builder
+	if diffStat != "" {
+		inProgress.WriteString(diffStat)
+	}
+	if ctx.RecentLog != "" {
+		if inProgress.Len() > 0 {
+			inProgress.WriteString("\n\n")
+		}
+		inProgress.WriteString("Recent commits:\n")
+		inProgress.WriteString(ctx.RecentLog)
+	}
+
 	data := SnapshotData{
-		Goal:       "Unable to determine (claude -p unavailable)",
+		Goal:       extractGoalFromMD(ctx.ProjectMD),
 		Decisions:  []string{},
-		InProgress: ctx.DiffStat,
+		InProgress: inProgress.String(),
 		Next:       "Review modified files and continue",
 	}
 	return FormatSnapshot(data)
+}
+
+// filterGitWarnings removes git warning lines from output.
+func filterGitWarnings(s string) string {
+	if s == "" {
+		return ""
+	}
+	var filtered []string
+	for _, line := range strings.Split(s, "\n") {
+		if !strings.HasPrefix(line, "warning:") {
+			filtered = append(filtered, line)
+		}
+	}
+	return strings.TrimSpace(strings.Join(filtered, "\n"))
+}
+
+// extractGoalFromMD tries to extract a meaningful goal from CLAUDE.md content.
+func extractGoalFromMD(md string) string {
+	if md == "" || md == "Not available" {
+		return "Unable to determine (claude -p unavailable)"
+	}
+	// Look for a "What it does" or first paragraph after the title
+	for _, line := range strings.Split(md, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		// First non-empty, non-heading line is likely a description
+		if len(line) > 120 {
+			return line[:120] + "..."
+		}
+		return line
+	}
+	return "Unable to determine (claude -p unavailable)"
+}
+
+// filterEnv returns a copy of env with the named variable removed.
+func filterEnv(env []string, key string) []string {
+	prefix := key + "="
+	filtered := make([]string, 0, len(env))
+	for _, e := range env {
+		if !strings.HasPrefix(e, prefix) {
+			filtered = append(filtered, e)
+		}
+	}
+	return filtered
 }
 
 // FormatSnapshot renders SnapshotData as structured markdown.

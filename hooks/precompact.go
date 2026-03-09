@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/AgusRdz/ctx/logging"
@@ -66,7 +67,10 @@ func RunPreCompact() error {
 	}
 
 	duration := time.Since(start)
-	trigger := input.Trigger
+	trigger := parseTriggerFromArgs()
+	if trigger == "" {
+		trigger = input.Trigger
+	}
 	if trigger == "" {
 		trigger = "unknown"
 	}
@@ -74,4 +78,14 @@ func RunPreCompact() error {
 		trigger, projectDir, duration.Seconds())
 
 	return nil
+}
+
+// parseTriggerFromArgs reads --trigger=<value> from os.Args.
+func parseTriggerFromArgs() string {
+	for _, arg := range os.Args {
+		if strings.HasPrefix(arg, "--trigger=") {
+			return strings.TrimPrefix(arg, "--trigger=")
+		}
+	}
+	return ""
 }
