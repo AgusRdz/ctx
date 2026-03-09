@@ -30,6 +30,10 @@ func main() {
 		err = cmdShow()
 	case "clear":
 		err = cmdClear()
+	case "uninstall":
+		if install.ConfirmUninstall(os.Args[2:]) {
+			err = install.Uninstall()
+		}
 	case "update":
 		updater.Run(version)
 	case "version", "--version", "-v":
@@ -120,6 +124,7 @@ Usage:
   ctx init --status     Check hook installation status
   ctx show              Print current snapshot
   ctx clear             Delete current snapshot
+  ctx uninstall         Remove ctx completely
   ctx update            Update to the latest version
   ctx version           Show version
   ctx hook precompact   (called by Claude Code PreCompact hook)
