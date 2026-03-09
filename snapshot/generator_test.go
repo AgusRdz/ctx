@@ -133,9 +133,9 @@ func TestGenerateFallback_ValidMarkdown(t *testing.T) {
 
 	result := GenerateFallback(ctx)
 
-	// Should contain the fallback goal message
-	if !strings.Contains(result, "Unable to determine (claude -p unavailable)") {
-		t.Error("fallback goal message missing")
+	// Should contain a goal extracted from ProjectMD
+	if !strings.Contains(result, "Test project") {
+		t.Error("fallback goal should be extracted from ProjectMD")
 	}
 
 	// In Progress should contain the DiffStat

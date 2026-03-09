@@ -5,18 +5,19 @@ import (
 )
 
 func TestHasCtxHook_Found(t *testing.T) {
+	cmd := "ctx hook precompact --trigger=auto"
 	hooks := map[string]interface{}{
 		"PreCompact": []interface{}{
 			map[string]interface{}{
 				"matcher": "auto",
 				"hooks": []interface{}{
-					map[string]interface{}{"type": "command", "command": "ctx hook precompact"},
+					map[string]interface{}{"type": "command", "command": cmd},
 				},
 			},
 		},
 	}
 
-	if !hasCtxHook(hooks, "PreCompact", precompactCmd) {
+	if !hasCtxHook(hooks, "PreCompact", cmd) {
 		t.Error("expected hasCtxHook to find PreCompact hook")
 	}
 }
@@ -33,7 +34,7 @@ func TestHasCtxHook_Missing(t *testing.T) {
 		},
 	}
 
-	if hasCtxHook(hooks, "PreCompact", precompactCmd) {
+	if hasCtxHook(hooks, "PreCompact", "ctx hook precompact") {
 		t.Error("expected hasCtxHook to not find ctx command")
 	}
 }
@@ -41,23 +42,24 @@ func TestHasCtxHook_Missing(t *testing.T) {
 func TestHasCtxHook_KeyMissing(t *testing.T) {
 	hooks := map[string]interface{}{}
 
-	if hasCtxHook(hooks, "PreCompact", precompactCmd) {
+	if hasCtxHook(hooks, "PreCompact", "ctx hook precompact") {
 		t.Error("expected hasCtxHook to return false for missing key")
 	}
 }
 
 func TestHasCtxHook_SessionStart(t *testing.T) {
+	cmd := "ctx hook session"
 	hooks := map[string]interface{}{
 		"SessionStart": []interface{}{
 			map[string]interface{}{
 				"hooks": []interface{}{
-					map[string]interface{}{"type": "command", "command": "ctx hook session"},
+					map[string]interface{}{"type": "command", "command": cmd},
 				},
 			},
 		},
 	}
 
-	if !hasCtxHook(hooks, "SessionStart", sessionCmd) {
+	if !hasCtxHook(hooks, "SessionStart", cmd) {
 		t.Error("expected hasCtxHook to find SessionStart hook")
 	}
 }
