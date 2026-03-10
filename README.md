@@ -39,30 +39,39 @@ That's it. ctx works automatically from this point on.
 ## Commands
 
 ```
-ctx init              Install hooks in Claude Code
-ctx init --remove     Remove hooks
-ctx init --status     Check hook installation status
-ctx show              Print current snapshot
-ctx clear             Delete current snapshot
-ctx uninstall         Remove ctx completely
-ctx update            Update to the latest version
-ctx version           Show version
+ctx init                       Install hooks in Claude Code
+ctx init --remove              Remove hooks
+ctx init --status              Check hook installation status
+ctx show                       Print current snapshot
+ctx show --project <path>      Print snapshot for a specific project
+ctx clear                      Delete current snapshot
+ctx list                       List all projects with snapshots
+ctx config                     Show configuration (paths, debug status)
+ctx config --debug true|false  Enable or disable verbose hook logging
+ctx reset                      Clear snapshots (current directory or all)
+ctx doctor                     Check installation health
+ctx logs                       Show recent hook log entries
+ctx uninstall                  Remove ctx completely (hooks, data, binary)
+ctx update                     Update to the latest version
+ctx version                    Show version
 ```
 
 ## How it works
 
-1. **PreCompact hook** — Before Claude compacts, ctx reads the session transcript and git state, then calls `claude -p` to generate a semantic snapshot. If `claude -p` is unavailable, it falls back to a deterministic snapshot from git diff/log and CLAUDE.md.
+1. **PreCompact hook** — Before Claude compacts, ctx reads the session transcript and git state, then calls `claude -p` to generate a semantic snapshot (with a 30s timeout). If `claude -p` is unavailable, it falls back to a deterministic snapshot derived from git diff/log and CLAUDE.md.
 
-2. **SessionStart hook** — When a session starts (or resumes after compaction), ctx checks for an existing snapshot and prints it to stdout. Claude Code automatically injects this as context.
+2. **SessionStart hook** — When a session starts (or resumes after compaction), ctx checks for an existing snapshot and prints it to stdout. Claude Code automatically injects this as context. If the snapshot is more than 7 days old, a staleness warning is prepended.
 
 Snapshots are stored at:
 - Linux/macOS: `~/.local/share/ctx/{project-hash}/snapshot.md`
-- Windows: `%LOCALAPPDATA%/ctx/{project-hash}/snapshot.md`
+- Windows: `%LOCALAPPDATA%\ctx\{project-hash}\snapshot.md`
 
 ## Snapshot format
 
 ```markdown
 # Session Context
+
+_Captured: 2026-03-09T14:32Z_
 
 ## Goal
 Building the authentication middleware
@@ -79,6 +88,18 @@ Building the authentication middleware
 ## Next
 Add token refresh endpoint and write integration tests
 ```
+
+## Debugging
+
+```sh
+ctx doctor                     Check hooks, binary path, claude availability
+ctx logs                       Show last 20 hook log entries
+ctx config --debug true        Enable verbose logging (context sizes, timings)
+```
+
+Log file location:
+- Linux/macOS: `~/.local/share/ctx/debug.log`
+- Windows: `%LOCALAPPDATA%\ctx\debug.log`
 
 ## What ctx is NOT
 
