@@ -160,11 +160,11 @@ func cmdClear() error {
 }
 
 func cmdList() error {
-	infos, err := snapshot.List()
+	infos, legacy, err := snapshot.List()
 	if err != nil {
 		return err
 	}
-	if len(infos) == 0 {
+	if len(infos) == 0 && legacy == 0 {
 		fmt.Fprintln(os.Stderr, "ctx: no snapshots found")
 		return nil
 	}
@@ -175,6 +175,9 @@ func cmdList() error {
 			age = fmt.Sprintf(" (%s ago)", d)
 		}
 		fmt.Printf("%s\n  %s%s\n\n", info.ProjectDir, info.Goal, age)
+	}
+	if legacy > 0 {
+		fmt.Fprintf(os.Stderr, "ctx: %d legacy snapshot(s) not shown — trigger a compaction to refresh them\n", legacy)
 	}
 	return nil
 }
@@ -273,7 +276,7 @@ Usage:
   ctx show --project P  Print snapshot for project at path P
   ctx clear             Delete current snapshot
   ctx list              List all projects with snapshots
-  ctx config            Show current configuration (paths, debug status)
+  ctx config                     Show configuration (paths, debug status)
   ctx config --debug true|false  Enable or disable verbose hook logging
   ctx reset             Clear snapshots (current directory or all projects)
   ctx doctor            Check installation health
