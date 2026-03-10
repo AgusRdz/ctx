@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/AgusRdz/ctx/config"
 	"github.com/AgusRdz/ctx/hooks"
@@ -33,6 +34,10 @@ func main() {
 		err = cmdShow()
 	case "clear":
 		err = cmdClear()
+	case "list":
+		err = cmdList()
+	case "config":
+		cmdConfig()
 	case "doctor":
 		install.Doctor()
 	case "logs":
@@ -75,7 +80,14 @@ func cmdInit() error {
 		fmt.Fprintln(os.Stderr, "ctx: hooks removed")
 	case "--status":
 		fmt.Println(install.Status())
-	case "":
+	case "", "--help", "-h":
+		if flag == "--help" || flag == "-h" {
+			fmt.Fprintln(os.Stderr, "Usage: ctx init [--remove|--status]")
+			fmt.Fprintln(os.Stderr, "  (no flag)   Install PreCompact and SessionStart hooks")
+			fmt.Fprintln(os.Stderr, "  --remove    Remove ctx hooks")
+			fmt.Fprintln(os.Stderr, "  --status    Show installation status")
+			return nil
+		}
 		if err := install.Install(); err != nil {
 			return err
 		}
@@ -92,6 +104,10 @@ func cmdHook() error {
 	}
 
 	switch os.Args[2] {
+	case "--help", "-h":
+		fmt.Fprintln(os.Stderr, "Usage: ctx hook <precompact|session>")
+		fmt.Fprintln(os.Stderr, "  These commands are called by Claude Code hooks, not directly.")
+		return nil
 	case "precompact":
 		return hooks.RunPreCompact()
 	case "session":
@@ -103,6 +119,25 @@ func cmdHook() error {
 
 func cmdShow() error {
 	dir, _ := os.Getwd()
+
+	// Support --project <path> or --project=<path>
+	args := os.Args[2:]
+	for i, arg := range args {
+		if arg == "--project" && i+1 < len(args) {
+			dir = args[i+1]
+			break
+		}
+		if strings.HasPrefix(arg, "--project=") {
+			dir = strings.TrimPrefix(arg, "--project=")
+			break
+		}
+		if arg == "--help" || arg == "-h" {
+			fmt.Fprintln(os.Stderr, "Usage: ctx show [--project <path>]")
+			fmt.Fprintln(os.Stderr, "  Print the snapshot for the current or specified directory.")
+			return nil
+		}
+	}
+
 	content, err := snapshot.Read(dir)
 	if err != nil {
 		return err
@@ -122,6 +157,31 @@ func cmdClear() error {
 	}
 	fmt.Fprintln(os.Stderr, "ctx: snapshot cleared")
 	return nil
+}
+
+func cmdList() error {
+	infos, err := snapshot.List()
+	if err != nil {
+		return err
+	}
+	if len(infos) == 0 {
+		fmt.Fprintln(os.Stderr, "ctx: no snapshots found")
+		return nil
+	}
+	for _, info := range infos {
+		age := ""
+		if !info.CapturedAt.IsZero() {
+			d := time.Since(info.CapturedAt).Round(time.Minute)
+			age = fmt.Sprintf(" (%s ago)", d)
+		}
+		fmt.Printf("%s\n  %s%s\n\n", info.ProjectDir, info.Goal, age)
+	}
+	return nil
+}
+
+func cmdConfig() {
+	fmt.Printf("data dir:  %s\n", config.DataDir())
+	fmt.Printf("log file:  %s\n", config.LogFile())
 }
 
 func cmdLogs() error {
@@ -186,7 +246,10 @@ Usage:
   ctx init --remove     Remove hooks
   ctx init --status     Check hook installation status
   ctx show              Print current snapshot
+  ctx show --project P  Print snapshot for project at path P
   ctx clear             Delete current snapshot
+  ctx list              List all projects with snapshots
+  ctx config            Show current configuration (paths)
   ctx reset             Clear snapshots (current directory or all projects)
   ctx doctor            Check installation health
   ctx logs              Show recent hook log entries

@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 const promptTemplate = `Analyze this development session context and respond ONLY in valid JSON,
@@ -31,10 +32,11 @@ Respond with exactly this JSON:
 
 // SnapshotData represents the structured snapshot content.
 type SnapshotData struct {
-	Goal       string   `json:"goal"`
-	Decisions  []string `json:"decisions"`
-	InProgress string   `json:"in_progress"`
-	Next       string   `json:"next"`
+	Goal       string    `json:"goal"`
+	Decisions  []string  `json:"decisions"`
+	InProgress string    `json:"in_progress"`
+	Next       string    `json:"next"`
+	CapturedAt time.Time `json:"-"`
 }
 
 // Generate calls claude -p to produce a semantic snapshot from collected context
@@ -58,6 +60,7 @@ func Generate(ctx Context, transcriptLines string) (string, error) {
 		return "", fmt.Errorf("ctx: failed to parse claude response: %w", err)
 	}
 
+	data.CapturedAt = time.Now().UTC()
 	return FormatSnapshot(data), nil
 }
 
@@ -66,24 +69,33 @@ func GenerateFallback(ctx Context) string {
 	// Filter git warnings from DiffStat
 	diffStat := filterGitWarnings(ctx.DiffStat)
 
-	// Build In Progress from DiffStat and RecentLog
-	var inProgress strings.Builder
-	if diffStat != "" {
-		inProgress.WriteString(diffStat)
-	}
+	// Build decisions from recent commits
+	var decisions []string
 	if ctx.RecentLog != "" {
-		if inProgress.Len() > 0 {
-			inProgress.WriteString("\n\n")
+		for _, line := range strings.Split(ctx.RecentLog, "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+			parts := strings.SplitN(line, " ", 2)
+			if len(parts) == 2 && parts[1] != "" {
+				decisions = append(decisions, parts[1])
+			}
 		}
-		inProgress.WriteString("Recent commits:\n")
-		inProgress.WriteString(ctx.RecentLog)
+	}
+
+	// Build In Progress from DiffStat
+	inProgress := strings.TrimSpace(diffStat)
+	if inProgress == "" && ctx.RecentLog != "" {
+		inProgress = "See recent commits above"
 	}
 
 	data := SnapshotData{
 		Goal:       inferGoal(ctx),
-		Decisions:  []string{},
-		InProgress: inProgress.String(),
+		Decisions:  decisions,
+		InProgress: inProgress,
 		Next:       "Review modified files and continue",
+		CapturedAt: time.Now().UTC(),
 	}
 	return FormatSnapshot(data)
 }
@@ -145,22 +157,47 @@ func filterEnv(env []string, key string) []string {
 	return filtered
 }
 
-// FormatSnapshot renders SnapshotData as structured markdown.
+// FormatSnapshot renders SnapshotData as structured markdown within the token budget.
 func FormatSnapshot(data SnapshotData) string {
+	// Enforce field-level token budget
+	goal := truncateField(data.Goal, 120)
+
+	decisions := data.Decisions
+	if len(decisions) > 5 {
+		decisions = decisions[:5]
+	}
+
+	inProgress := truncateField(data.InProgress, 400)
+	next := truncateField(data.Next, 150)
+
+	captured := data.CapturedAt
+	if captured.IsZero() {
+		captured = time.Now().UTC()
+	}
+
 	var b strings.Builder
 	b.WriteString("# Session Context\n\n")
+	b.WriteString(fmt.Sprintf("_Captured: %s_\n\n", captured.Format("2006-01-02T15:04Z")))
 	b.WriteString("## Goal\n")
-	b.WriteString(data.Goal)
+	b.WriteString(goal)
 	b.WriteString("\n\n## Decisions\n")
-	for _, d := range data.Decisions {
+	for _, d := range decisions {
 		b.WriteString("- ")
-		b.WriteString(d)
+		b.WriteString(truncateField(d, 100))
 		b.WriteString("\n")
 	}
 	b.WriteString("\n## In Progress\n")
-	b.WriteString(data.InProgress)
+	b.WriteString(inProgress)
 	b.WriteString("\n\n## Next\n")
-	b.WriteString(data.Next)
+	b.WriteString(next)
 	b.WriteString("\n")
 	return b.String()
+}
+
+// truncateField limits a string to n characters, appending "..." if truncated.
+func truncateField(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "..."
 }
