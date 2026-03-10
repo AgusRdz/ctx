@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -213,6 +214,28 @@ func cmdConfig() {
 
 func cmdLogs() error {
 	n := 20
+	all := false
+
+	args := os.Args[2:]
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--all":
+			all = true
+		case "-n":
+			if i+1 >= len(args) {
+				return fmt.Errorf("ctx: -n requires a number")
+			}
+			i++
+			count, err := strconv.Atoi(args[i])
+			if err != nil || count < 1 {
+				return fmt.Errorf("ctx: -n must be a positive integer")
+			}
+			n = count
+		default:
+			return fmt.Errorf("ctx: unknown flag %q for logs", args[i])
+		}
+	}
+
 	logPath := config.LogFile()
 	f, err := os.Open(logPath)
 	if os.IsNotExist(err) {
@@ -234,7 +257,7 @@ func cmdLogs() error {
 		return nil
 	}
 	start := 0
-	if len(lines) > n {
+	if !all && len(lines) > n {
 		start = len(lines) - n
 	}
 	for _, line := range lines[start:] {
@@ -280,7 +303,9 @@ Usage:
   ctx config --debug true|false  Enable or disable verbose hook logging
   ctx reset             Clear snapshots (current directory or all projects)
   ctx doctor            Check installation health
-  ctx logs              Show recent hook log entries
+  ctx logs              Show last 20 hook log entries
+  ctx logs -n <count>   Show last N entries
+  ctx logs --all        Show all entries
   ctx uninstall         Remove ctx completely (hooks, data, binary)
   ctx update            Update to the latest version
   ctx version           Show version
