@@ -62,8 +62,8 @@ func Generate(ctx Context, transcriptLines string) (string, error) {
 		return "", fmt.Errorf("ctx: claude -p failed: %w", err)
 	}
 
-	// Parse the JSON response
-	raw := strings.TrimSpace(string(out))
+	// Parse the JSON response — strip markdown code fences if present
+	raw := stripCodeFences(strings.TrimSpace(string(out)))
 	var data SnapshotData
 	if err := json.Unmarshal([]byte(raw), &data); err != nil {
 		return "", fmt.Errorf("ctx: failed to parse claude response: %w", err)
@@ -152,6 +152,23 @@ func inferGoal(ctx Context) string {
 
 	// Last resort: project directory name
 	return filepath.Base(ctx.ProjectDir) + " development"
+}
+
+// stripCodeFences removes markdown code block delimiters (```json ... ``` or ``` ... ```)
+// that claude -p sometimes wraps around JSON responses.
+func stripCodeFences(s string) string {
+	// Remove opening fence: ```json or ```
+	if i := strings.Index(s, "```"); i != -1 {
+		end := strings.Index(s, "\n")
+		if end > i {
+			s = s[end+1:]
+		}
+	}
+	// Remove closing fence
+	if i := strings.LastIndex(s, "```"); i != -1 {
+		s = s[:i]
+	}
+	return strings.TrimSpace(s)
 }
 
 // filterEnv returns a copy of env with the named variable removed.

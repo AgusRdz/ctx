@@ -204,6 +204,43 @@ func TestInferGoal_CommitsNoMD(t *testing.T) {
 	}
 }
 
+func TestStripCodeFences(t *testing.T) {
+	cases := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "plain json unchanged",
+			input: `{"goal":"test"}`,
+			want:  `{"goal":"test"}`,
+		},
+		{
+			name:  "json fenced with ```json",
+			input: "```json\n{\"goal\":\"test\"}\n```",
+			want:  `{"goal":"test"}`,
+		},
+		{
+			name:  "json fenced with plain ```",
+			input: "```\n{\"goal\":\"test\"}\n```",
+			want:  `{"goal":"test"}`,
+		},
+		{
+			name:  "whitespace trimmed",
+			input: "```json\n  {\"goal\":\"test\"}  \n```",
+			want:  `{"goal":"test"}`,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := stripCodeFences(tc.input)
+			if got != tc.want {
+				t.Errorf("got %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestGenerateFallback_EmptyDiffStat(t *testing.T) {
 	ctx := Context{
 		DiffStat:   "",
