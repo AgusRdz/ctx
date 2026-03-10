@@ -94,3 +94,42 @@ func TestClear_Nonexistent(t *testing.T) {
 		t.Fatalf("Clear on nonexistent snapshot should not error: %v", err)
 	}
 }
+
+func TestGoalFromSnapshot_Standard(t *testing.T) {
+	content := "# Session Context\n\n_Captured: 2026-03-09T14:00Z_\n\n## Goal\nBuild authentication middleware\n\n## Decisions\n- Use JWT\n"
+	got := goalFromSnapshot(content)
+	if got != "Build authentication middleware" {
+		t.Errorf("expected goal, got %q", got)
+	}
+}
+
+func TestGoalFromSnapshot_NoTimestamp(t *testing.T) {
+	content := "# Session Context\n\n## Goal\nDeploy to production\n\n## Decisions\n"
+	got := goalFromSnapshot(content)
+	if got != "Deploy to production" {
+		t.Errorf("expected goal without timestamp, got %q", got)
+	}
+}
+
+func TestGoalFromSnapshot_NoGoalSection(t *testing.T) {
+	content := "# Session Context\n\n## Decisions\n- some decision\n"
+	got := goalFromSnapshot(content)
+	if got != "unknown" {
+		t.Errorf("expected 'unknown' when no Goal section, got %q", got)
+	}
+}
+
+func TestGoalFromSnapshot_EmptyContent(t *testing.T) {
+	got := goalFromSnapshot("")
+	if got != "unknown" {
+		t.Errorf("expected 'unknown' for empty content, got %q", got)
+	}
+}
+
+func TestGoalFromSnapshot_BlankLinesAroundGoal(t *testing.T) {
+	content := "## Goal\n\n\nActual goal text\n\n## Next\n"
+	got := goalFromSnapshot(content)
+	if got != "Actual goal text" {
+		t.Errorf("expected goal text after blank lines, got %q", got)
+	}
+}
