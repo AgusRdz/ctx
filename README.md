@@ -50,7 +50,9 @@ ctx config                     Show configuration (paths, debug status)
 ctx config --debug true|false  Enable or disable verbose hook logging
 ctx reset                      Clear snapshots (current directory or all)
 ctx doctor                     Check installation health
-ctx logs                       Show recent hook log entries
+ctx logs                       Show last 20 hook log entries
+ctx logs -n <count>            Show last N entries
+ctx logs --all                 Show all entries
 ctx uninstall                  Remove ctx completely (hooks, data, binary)
 ctx update                     Update to the latest version
 ctx version                    Show version
@@ -94,6 +96,8 @@ Add token refresh endpoint and write integration tests
 ```sh
 ctx doctor                     Check hooks, binary path, claude availability
 ctx logs                       Show last 20 hook log entries
+ctx logs -n 50                 Show last 50 entries
+ctx logs --all                 Show all entries
 ctx config --debug true        Enable verbose logging (context sizes, timings)
 ```
 

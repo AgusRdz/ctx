@@ -75,6 +75,5 @@ esac
 
 echo "Next steps:"
 echo ""
-echo "  # Register hooks in Claude Code:"
-echo "  ctx init"
-echo "  ctx init --status    # check if installed"
+echo "  ctx init             # register hooks in Claude Code"
+echo "  ctx doctor           # verify the installation"
