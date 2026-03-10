@@ -92,17 +92,20 @@ type SnapshotInfo struct {
 }
 
 // List returns info about all stored snapshots across all projects.
-func List() ([]SnapshotInfo, error) {
+// The second return value is the count of legacy snapshots (pre-v0.1.7)
+// that exist on disk but cannot be listed because they lack path.txt.
+func List() ([]SnapshotInfo, int, error) {
 	dataDir := config.DataDir()
 	entries, err := os.ReadDir(dataDir)
 	if os.IsNotExist(err) {
-		return nil, nil
+		return nil, 0, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("ctx: %w", err)
+		return nil, 0, fmt.Errorf("ctx: %w", err)
 	}
 
 	var results []SnapshotInfo
+	legacy := 0
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
@@ -112,7 +115,11 @@ func List() ([]SnapshotInfo, error) {
 		// Read project path
 		pathData, err := os.ReadFile(filepath.Join(entryDir, "path.txt"))
 		if err != nil {
-			continue // skip entries without path (pre-v0.1.7 snapshots)
+			// Has snapshot.md but no path.txt — legacy entry
+			if _, serr := os.Stat(filepath.Join(entryDir, "snapshot.md")); serr == nil {
+				legacy++
+			}
+			continue
 		}
 		projectDir := strings.TrimSpace(string(pathData))
 
@@ -136,7 +143,7 @@ func List() ([]SnapshotInfo, error) {
 			CapturedAt: capturedAt,
 		})
 	}
-	return results, nil
+	return results, legacy, nil
 }
 
 // goalFromSnapshot extracts the goal line from a formatted snapshot.

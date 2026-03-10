@@ -63,6 +63,14 @@ func Doctor() {
 	dataDir := config.DataDir()
 	fmt.Printf("[ok] data directory: %s\n", dataDir)
 
+	// 5. Show debug mode status
+	c := config.Load()
+	if c.Debug {
+		fmt.Println("[ok] debug mode: enabled")
+	} else {
+		fmt.Println("[ok] debug mode: disabled  (ctx config --debug true to enable)")
+	}
+
 	if issues == 0 {
 		fmt.Println("\nall good!")
 	} else {

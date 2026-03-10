@@ -1,6 +1,7 @@
 package snapshot
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -9,6 +10,8 @@ import (
 	"strings"
 	"time"
 )
+
+const claudeTimeout = 30 * time.Second
 
 const promptTemplate = `Analyze this development session context and respond ONLY in valid JSON,
 no explanations, no markdown, no backticks.
@@ -44,12 +47,18 @@ type SnapshotData struct {
 func Generate(ctx Context, transcriptLines string) (string, error) {
 	prompt := fmt.Sprintf(promptTemplate, ctx.DiffStat, ctx.ProjectMD, transcriptLines)
 
-	cmd := exec.Command("claude", "-p", prompt)
+	cmdCtx, cancel := context.WithTimeout(context.Background(), claudeTimeout)
+	defer cancel()
+
+	cmd := exec.CommandContext(cmdCtx, "claude", "-p", prompt)
 	cmd.Dir = ctx.ProjectDir
 	// Clear CLAUDECODE env var to allow nested claude -p invocation
 	cmd.Env = filterEnv(os.Environ(), "CLAUDECODE")
 	out, err := cmd.Output()
 	if err != nil {
+		if cmdCtx.Err() == context.DeadlineExceeded {
+			return "", fmt.Errorf("ctx: claude -p timed out after %s", claudeTimeout)
+		}
 		return "", fmt.Errorf("ctx: claude -p failed: %w", err)
 	}
 
