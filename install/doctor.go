@@ -68,7 +68,7 @@ func Doctor() {
 	if c.Debug {
 		fmt.Println("[ok] debug mode: enabled")
 	} else {
-		fmt.Println("[ok] debug mode: disabled  (ctx config --debug true to enable)")
+		fmt.Println("[ok] debug mode: disabled (ctx config --debug true to enable)")
 	}
 
 	if issues == 0 {

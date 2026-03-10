@@ -61,7 +61,7 @@ func main() {
 	}
 
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "ctx: %v\n", err)
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
@@ -93,14 +93,14 @@ func cmdInit() error {
 		}
 		fmt.Fprintln(os.Stderr, "ctx: hooks installed")
 	default:
-		return fmt.Errorf("unknown flag %q for init", flag)
+		return fmt.Errorf("ctx: unknown flag %q for init", flag)
 	}
 	return nil
 }
 
 func cmdHook() error {
 	if len(os.Args) < 3 {
-		return fmt.Errorf("usage: ctx hook <precompact|session>")
+		return fmt.Errorf("ctx: usage: ctx hook <precompact|session>")
 	}
 
 	switch os.Args[2] {
@@ -113,7 +113,7 @@ func cmdHook() error {
 	case "session":
 		return hooks.RunSession()
 	default:
-		return fmt.Errorf("unknown hook %q", os.Args[2])
+		return fmt.Errorf("ctx: unknown hook %q", os.Args[2])
 	}
 }
 
