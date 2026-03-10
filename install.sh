@@ -15,8 +15,9 @@ esac
 # Detect architecture
 ARCH="$(uname -m)"
 case "$ARCH" in
-  x86_64|amd64) ARCH="amd64" ;;
-  aarch64|arm64) ARCH="arm64" ;;
+  x86_64|amd64)   ARCH="amd64" ;;
+  aarch64|arm64)  ARCH="arm64" ;;
+  armv7l)         ARCH="arm64" ;;
   *) echo "unsupported architecture: $ARCH" >&2; exit 1 ;;
 esac
 

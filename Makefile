@@ -4,7 +4,7 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
 build:
-	docker compose run --rm dev go build -ldflags="$(LDFLAGS)" -o bin/ctx .
+	docker compose run --rm dev go build -ldflags="$(LDFLAGS)" -o bin/ctx ./cmd
 
 test:
 	docker compose run --rm dev go test ./... -v
@@ -60,7 +60,9 @@ release-major:
 
 cross:
 	docker compose run --rm dev sh -c "\
-		CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags='$(LDFLAGS)' -o bin/ctx-linux-amd64 ./cmd && \
-		CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags='$(LDFLAGS)' -o bin/ctx-darwin-amd64 ./cmd && \
-		CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -ldflags='$(LDFLAGS)' -o bin/ctx-darwin-arm64 ./cmd && \
-		CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags='$(LDFLAGS)' -o bin/ctx-windows-amd64.exe ./cmd"
+		CGO_ENABLED=0 GOOS=linux   GOARCH=amd64 go build -ldflags='$(LDFLAGS)' -o bin/ctx-linux-amd64   ./cmd && \
+		CGO_ENABLED=0 GOOS=linux   GOARCH=arm64 go build -ldflags='$(LDFLAGS)' -o bin/ctx-linux-arm64   ./cmd && \
+		CGO_ENABLED=0 GOOS=darwin  GOARCH=amd64 go build -ldflags='$(LDFLAGS)' -o bin/ctx-darwin-amd64  ./cmd && \
+		CGO_ENABLED=0 GOOS=darwin  GOARCH=arm64 go build -ldflags='$(LDFLAGS)' -o bin/ctx-darwin-arm64  ./cmd && \
+		CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags='$(LDFLAGS)' -o bin/ctx-windows-amd64.exe ./cmd && \
+		CGO_ENABLED=0 GOOS=windows GOARCH=arm64 go build -ldflags='$(LDFLAGS)' -o bin/ctx-windows-arm64.exe ./cmd"

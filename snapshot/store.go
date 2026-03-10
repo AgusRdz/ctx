@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -143,6 +144,11 @@ func List() ([]SnapshotInfo, int, error) {
 			CapturedAt: capturedAt,
 		})
 	}
+	// Sort most recently captured first
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].CapturedAt.After(results[j].CapturedAt)
+	})
+
 	return results, legacy, nil
 }
 

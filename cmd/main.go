@@ -256,9 +256,11 @@ func cmdLogs() error {
 		fmt.Fprintln(os.Stderr, "ctx: log is empty")
 		return nil
 	}
+	total := len(lines)
 	start := 0
-	if !all && len(lines) > n {
-		start = len(lines) - n
+	if !all && total > n {
+		start = total - n
+		fmt.Fprintf(os.Stderr, "ctx: showing last %d of %d entries\n", n, total)
 	}
 	for _, line := range lines[start:] {
 		fmt.Println(line)
