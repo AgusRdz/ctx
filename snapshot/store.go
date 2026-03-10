@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/AgusRdz/ctx/config"
 )
@@ -37,14 +39,18 @@ func Read(projectDir string) (string, error) {
 }
 
 // Write saves a snapshot for a project, creating directories as needed.
+// It also stores the project path in path.txt for use by List().
 func Write(projectDir string, content string) error {
 	p := snapshotPath(projectDir)
-	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+	dir := filepath.Dir(p)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("ctx: %w", err)
 	}
 	if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
 		return fmt.Errorf("ctx: %w", err)
 	}
+	// Store project path so List() can reverse the hash
+	_ = os.WriteFile(filepath.Join(dir, "path.txt"), []byte(projectDir), 0o644)
 	return nil
 }
 
@@ -80,4 +86,81 @@ func ClearAll() error {
 		}
 	}
 	return nil
+}
+
+// SnapshotInfo holds metadata about a stored snapshot.
+type SnapshotInfo struct {
+	ProjectDir string
+	Goal       string
+	CapturedAt time.Time
+}
+
+// List returns info about all stored snapshots across all projects.
+func List() ([]SnapshotInfo, error) {
+	dataDir := config.DataDir()
+	entries, err := os.ReadDir(dataDir)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("ctx: %w", err)
+	}
+
+	var results []SnapshotInfo
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		entryDir := filepath.Join(dataDir, entry.Name())
+
+		// Read project path
+		pathData, err := os.ReadFile(filepath.Join(entryDir, "path.txt"))
+		if err != nil {
+			continue // skip entries without path (pre-v0.1.7 snapshots)
+		}
+		projectDir := strings.TrimSpace(string(pathData))
+
+		// Read snapshot for goal extraction
+		snapData, err := os.ReadFile(filepath.Join(entryDir, "snapshot.md"))
+		if err != nil {
+			continue
+		}
+		goal := goalFromSnapshot(string(snapData))
+
+		// Use snapshot file mod time as capture time
+		snapInfo, err := os.Stat(filepath.Join(entryDir, "snapshot.md"))
+		capturedAt := time.Time{}
+		if err == nil {
+			capturedAt = snapInfo.ModTime()
+		}
+
+		results = append(results, SnapshotInfo{
+			ProjectDir: projectDir,
+			Goal:       goal,
+			CapturedAt: capturedAt,
+		})
+	}
+	return results, nil
+}
+
+// goalFromSnapshot extracts the goal line from a formatted snapshot.
+func goalFromSnapshot(content string) string {
+	inGoal := false
+	for _, line := range strings.Split(content, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "## Goal" {
+			inGoal = true
+			continue
+		}
+		if inGoal {
+			if trimmed == "" || strings.HasPrefix(trimmed, "_") {
+				continue // skip blank lines and _Captured:_ lines
+			}
+			if strings.HasPrefix(trimmed, "##") {
+				break // reached next section
+			}
+			return trimmed
+		}
+	}
+	return "unknown"
 }
