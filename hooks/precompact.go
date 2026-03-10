@@ -46,12 +46,16 @@ func RunPreCompact() error {
 
 	// Collect deterministic context
 	ctx := snapshot.Collect(projectDir)
+	logging.Debug("precompact | diff_stat_bytes=%d | project_md_bytes=%d | recent_log_lines=%d",
+		len(ctx.DiffStat), len(ctx.ProjectMD), len(strings.Split(strings.TrimSpace(ctx.RecentLog), "\n")))
 
 	// Extract transcript lines
 	var transcriptLines string
 	if input.TranscriptPath != "" {
 		transcriptLines, _ = snapshot.ExtractTranscriptLines(input.TranscriptPath, 20)
 	}
+	logging.Debug("precompact | transcript_path=%s | extracted_bytes=%d",
+		input.TranscriptPath, len(transcriptLines))
 
 	// Generate snapshot via claude -p, with fallback
 	content, err := snapshot.Generate(ctx, transcriptLines)
@@ -59,6 +63,7 @@ func RunPreCompact() error {
 		logging.Log("precompact | WARNING: %v, using fallback", err)
 		content = snapshot.GenerateFallback(ctx)
 	}
+	logging.Debug("precompact | snapshot_bytes=%d", len(content))
 
 	// Write snapshot
 	if err := snapshot.Write(projectDir, content); err != nil {

@@ -54,14 +54,10 @@ func Write(projectDir string, content string) error {
 	return nil
 }
 
-// Clear deletes the snapshot for a project.
+// Clear deletes the snapshot directory for a project (snapshot.md + path.txt).
 func Clear(projectDir string) error {
-	p := snapshotPath(projectDir)
-	err := os.Remove(p)
-	if os.IsNotExist(err) {
-		return nil
-	}
-	if err != nil {
+	dir := filepath.Join(config.DataDir(), ProjectHash(projectDir))
+	if err := os.RemoveAll(dir); err != nil {
 		return fmt.Errorf("ctx: %w", err)
 	}
 	return nil

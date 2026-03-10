@@ -180,8 +180,32 @@ func cmdList() error {
 }
 
 func cmdConfig() {
+	args := os.Args[2:]
+
+	// Handle --debug true/false
+	for i, arg := range args {
+		if arg == "--debug" && i+1 < len(args) {
+			val := strings.ToLower(args[i+1])
+			if val != "true" && val != "false" {
+				fmt.Fprintln(os.Stderr, "ctx: --debug value must be true or false")
+				os.Exit(1)
+			}
+			c := config.Load()
+			c.Debug = val == "true"
+			if err := config.Save(c); err != nil {
+				fmt.Fprintf(os.Stderr, "ctx: %v\n", err)
+				os.Exit(1)
+			}
+			fmt.Fprintf(os.Stderr, "ctx: debug=%s\n", val)
+			return
+		}
+	}
+
+	// Show current config
+	c := config.Load()
 	fmt.Printf("data dir:  %s\n", config.DataDir())
 	fmt.Printf("log file:  %s\n", config.LogFile())
+	fmt.Printf("debug:     %v\n", c.Debug)
 }
 
 func cmdLogs() error {
@@ -249,7 +273,8 @@ Usage:
   ctx show --project P  Print snapshot for project at path P
   ctx clear             Delete current snapshot
   ctx list              List all projects with snapshots
-  ctx config            Show current configuration (paths)
+  ctx config            Show current configuration (paths, debug status)
+  ctx config --debug true|false  Enable or disable verbose hook logging
   ctx reset             Clear snapshots (current directory or all projects)
   ctx doctor            Check installation health
   ctx logs              Show recent hook log entries
