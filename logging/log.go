@@ -25,3 +25,11 @@ func Log(format string, args ...interface{}) {
 	msg := fmt.Sprintf(format, args...)
 	fmt.Fprintf(f, "[%s] %s\n", ts, msg)
 }
+
+// Debug appends a verbose entry to the log, but only when debug mode is enabled.
+func Debug(format string, args ...interface{}) {
+	if !config.Load().Debug {
+		return
+	}
+	Log("DEBUG "+format, args...)
+}
