@@ -22,6 +22,14 @@ When the session resumes after compaction (or when you start a new session in th
 
 ## Install
 
+**Homebrew (macOS/Linux):**
+
+```sh
+brew install AgusRdz/tap/ctx
+```
+
+**curl installer:**
+
 ```sh
 curl -fsSL https://raw.githubusercontent.com/AgusRdz/ctx/main/install.sh | sh
 ```
