@@ -101,6 +101,92 @@ func ClearAgents(projectDir string) error {
 	return nil
 }
 
+// ReadAgent returns the full snapshot content for a single agent by name.
+// Searches current agents first, then all archive slots. Returns empty string if not found.
+func ReadAgent(projectHash, agentName string) (string, error) {
+	path := filepath.Join(config.DataDir(), projectHash, "agents", agentName+".md")
+	data, err := os.ReadFile(path)
+	if err == nil {
+		return string(data), nil
+	}
+	if !os.IsNotExist(err) {
+		return "", fmt.Errorf("ctx: %w", err)
+	}
+
+	// Search archive directories
+	archiveBase := filepath.Join(config.DataDir(), projectHash, "agents", "archive")
+	entries, err := os.ReadDir(archiveBase)
+	if os.IsNotExist(err) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("ctx: %w", err)
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		candidate := filepath.Join(archiveBase, entry.Name(), agentName+".md")
+		data, err := os.ReadFile(candidate)
+		if err == nil {
+			return string(data), nil
+		}
+	}
+	return "", nil
+}
+
+// ArchiveGroup holds a set of archived agent snapshots from one compaction cycle.
+type ArchiveGroup struct {
+	DirName   string    // YYYYMMDD-HHMMSS
+	Timestamp time.Time
+	Agents    []AgentInfo
+}
+
+// ListArchivedAgentGroups returns archived agent groups for a project, newest first.
+func ListArchivedAgentGroups(projectHash string) ([]ArchiveGroup, error) {
+	archiveBase := filepath.Join(config.DataDir(), projectHash, "agents", "archive")
+	entries, err := os.ReadDir(archiveBase)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("ctx: %w", err)
+	}
+
+	var groups []ArchiveGroup
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		t, _ := time.ParseInLocation("20060102-150405", entry.Name(), time.UTC)
+		slotDir := filepath.Join(archiveBase, entry.Name())
+		agentFiles, err := os.ReadDir(slotDir)
+		if err != nil {
+			continue
+		}
+		var agentInfos []AgentInfo
+		for _, af := range agentFiles {
+			if af.IsDir() || !strings.HasSuffix(af.Name(), ".md") {
+				continue
+			}
+			data, err := os.ReadFile(filepath.Join(slotDir, af.Name()))
+			if err != nil {
+				continue
+			}
+			agentInfos = append(agentInfos, parseAgentInfo(string(data)))
+		}
+		groups = append(groups, ArchiveGroup{
+			DirName:   entry.Name(),
+			Timestamp: t,
+			Agents:    agentInfos,
+		})
+	}
+	sort.Slice(groups, func(i, j int) bool {
+		return groups[i].Timestamp.After(groups[j].Timestamp)
+	})
+	return groups, nil
+}
+
 // ListAgents returns lightweight info about all captured agents for a project hash.
 func ListAgents(projectHash string) ([]AgentInfo, error) {
 	dir := filepath.Join(config.DataDir(), projectHash, "agents")

@@ -3,6 +3,7 @@ package agents
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -19,7 +20,7 @@ func TestWriteReadAgentSnapshot(t *testing.T) {
 
 	projectHash := "testhash123"
 	s := AgentSnapshot{
-		Name:        "refactor-agent",
+		Name:        "fix-RES-376-20260313-174200",
 		Type:        "custom",
 		StoppedAt:   time.Now().UTC().Truncate(time.Minute),
 		FinalOutput: "Extracted AuthService to /services/auth.go",
@@ -52,31 +53,6 @@ func TestWriteReadAgentSnapshot(t *testing.T) {
 	}
 }
 
-func TestWriteReadAgentSnapshot_WithInternalState(t *testing.T) {
-	withTempDataDir(t)
-
-	projectHash := "testhash456"
-	s := AgentSnapshot{
-		Name:          "refactor-agent",
-		Type:          "custom",
-		StoppedAt:     time.Now().UTC().Truncate(time.Minute),
-		FinalOutput:   "Completed refactoring",
-		InternalState: "### Goal\nRefactor auth\n\n### Decisions\n- Use JWT\n",
-	}
-
-	if err := WriteAgentSnapshot(projectHash, s); err != nil {
-		t.Fatalf("WriteAgentSnapshot: %v", err)
-	}
-
-	snapshots, err := ReadAgentSnapshots(projectHash)
-	if err != nil {
-		t.Fatalf("ReadAgentSnapshots: %v", err)
-	}
-	if len(snapshots) != 1 {
-		t.Fatalf("expected 1 snapshot, got %d", len(snapshots))
-	}
-}
-
 func TestReadAgentSnapshots_Empty(t *testing.T) {
 	withTempDataDir(t)
 	snapshots, err := ReadAgentSnapshots("nonexistent-hash")
@@ -94,9 +70,7 @@ func TestReadAgentSnapshots_SkipsHiddenFiles(t *testing.T) {
 	dir := AgentsDir(projectHash)
 	os.MkdirAll(dir, 0o755)
 
-	// Write a hidden temp file
 	os.WriteFile(filepath.Join(dir, ".pending-session123.md"), []byte("temp"), 0o644)
-	// Write a real snapshot
 	s := AgentSnapshot{Name: "real-agent", Type: "custom", StoppedAt: time.Now(), FinalOutput: "done"}
 	WriteAgentSnapshot(projectHash, s)
 
@@ -129,20 +103,62 @@ func TestClearAgentSnapshots(t *testing.T) {
 	}
 }
 
-func TestWriteInternalState(t *testing.T) {
+func TestArchiveCurrentAgents(t *testing.T) {
 	withTempDataDir(t)
-	projectHash := "internalhash"
+	projectHash := "archivehash"
 
-	if err := WriteInternalState(projectHash, "session-abc", "internal content"); err != nil {
-		t.Fatalf("WriteInternalState: %v", err)
+	s1 := AgentSnapshot{Name: "main-20260313-170000", Type: "general", StoppedAt: time.Now(), FinalOutput: "done 1"}
+	s2 := AgentSnapshot{Name: "main-20260313-170100", Type: "general", StoppedAt: time.Now(), FinalOutput: "done 2"}
+	WriteAgentSnapshot(projectHash, s1)
+	WriteAgentSnapshot(projectHash, s2)
+
+	if err := ArchiveCurrentAgents(projectHash); err != nil {
+		t.Fatalf("ArchiveCurrentAgents: %v", err)
 	}
 
-	path := InternalStatePath(projectHash, "session-abc")
-	data, err := os.ReadFile(path)
+	// Current agents dir should be empty
+	current, _ := ReadAgentSnapshots(projectHash)
+	if len(current) != 0 {
+		t.Errorf("expected 0 current agents after archive, got %d", len(current))
+	}
+
+	// Archive should have a subdirectory with 2 files
+	archiveBase := ArchiveDir(projectHash)
+	entries, err := os.ReadDir(archiveBase)
 	if err != nil {
-		t.Fatalf("ReadFile: %v", err)
+		t.Fatalf("ReadDir archive: %v", err)
 	}
-	if string(data) != "internal content" {
-		t.Errorf("expected %q got %q", "internal content", string(data))
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 archive slot, got %d", len(entries))
+	}
+	slotEntries, _ := os.ReadDir(filepath.Join(archiveBase, entries[0].Name()))
+	if len(slotEntries) != 2 {
+		t.Errorf("expected 2 archived agents, got %d", len(slotEntries))
+	}
+}
+
+func TestArchiveCurrentAgents_NoOp(t *testing.T) {
+	withTempDataDir(t)
+	// Should not error when there's nothing to archive
+	if err := ArchiveCurrentAgents("emptyhash"); err != nil {
+		t.Fatalf("ArchiveCurrentAgents on empty: %v", err)
+	}
+}
+
+func TestAgentName(t *testing.T) {
+	ts := time.Date(2026, 3, 13, 17, 42, 0, 0, time.UTC)
+	// In a non-git directory, branch falls back to "no-branch"
+	name := AgentName(t.TempDir(), ts)
+	if !strings.HasSuffix(name, "-20260313-174200") {
+		t.Errorf("expected name to end with -20260313-174200, got %q", name)
+	}
+}
+
+func TestParseAgentSnapshot_LegacyFinalOutput(t *testing.T) {
+	// Ensure old "## Final Output" section is still parsed
+	content := "# Agent: old-agent\n_Stopped: 2026-03-13T17:42Z_\n_Type: general_\n\n## Final Output\nsome output\n"
+	s := parseAgentSnapshot(content)
+	if s.FinalOutput != "some output" {
+		t.Errorf("expected legacy final output parsed, got %q", s.FinalOutput)
 	}
 }

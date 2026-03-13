@@ -151,8 +151,8 @@ func cmdInit() error {
 			}
 			i++
 			agentsMode = args[i]
-			if agentsMode != "v1" && agentsMode != "v2" && agentsMode != "off" {
-				return fmt.Errorf("ctx: --agents mode must be v1, v2, or off")
+			if agentsMode != "on" && agentsMode != "off" {
+				return fmt.Errorf("ctx: --agents mode must be on or off")
 			}
 		case "--remove", "--status":
 			if action != "" {
@@ -495,23 +495,35 @@ func cmdAgents() error {
 	local := false
 	mode := ""
 
+	// subcommands: ctx agents show <name>, ctx agents archive
+	if len(args) > 0 {
+		switch args[0] {
+		case "show":
+			if len(args) < 2 {
+				return fmt.Errorf("ctx: usage: ctx agents show <agent-name>")
+			}
+			return cmdAgentsShow(dir, args[1])
+		case "archive":
+			return cmdAgentsArchive(dir)
+		}
+	}
+
 	for _, arg := range args {
 		switch arg {
 		case "--local":
 			local = true
-		case "--v1":
-			mode = "v1"
-		case "--v2":
-			mode = "v2"
+		case "--on":
+			mode = "on"
 		case "--off":
 			mode = "off"
 		case "--help", "-h":
-			fmt.Fprintln(os.Stderr, "Usage: ctx agents [--v1|--v2|--off] [--local]")
-			fmt.Fprintln(os.Stderr, "  (no flags)   Show active mode and list captured agents")
-			fmt.Fprintln(os.Stderr, "  --v1         Enable v1 mode (SubagentStop capture)")
-			fmt.Fprintln(os.Stderr, "  --v2         Enable v2 mode (PreCompact + SubagentStop)")
-			fmt.Fprintln(os.Stderr, "  --off        Disable subagent capture")
-			fmt.Fprintln(os.Stderr, "  --local      Write to local project config instead of global")
+			fmt.Fprintln(os.Stderr, "Usage: ctx agents [--on|--off] [--local]")
+			fmt.Fprintln(os.Stderr, "  (no flags)        Show active mode and list captured agents")
+			fmt.Fprintln(os.Stderr, "  show <name>       Print full snapshot for a captured agent")
+			fmt.Fprintln(os.Stderr, "  archive           List archived agent sessions")
+			fmt.Fprintln(os.Stderr, "  --on              Enable agent capture")
+			fmt.Fprintln(os.Stderr, "  --off             Disable agent capture")
+			fmt.Fprintln(os.Stderr, "  --local           Write to local project config instead of global")
 			return nil
 		default:
 			return fmt.Errorf("ctx: unknown flag %q for agents", arg)
@@ -528,6 +540,35 @@ func cmdAgents() error {
 		return nil
 	}
 	return showAgents(dir)
+}
+
+func cmdAgentsArchive(projectDir string) error {
+	projectHash := snapshot.ProjectHash(projectDir)
+	groups, err := snapshot.ListArchivedAgentGroups(projectHash)
+	if err != nil {
+		return err
+	}
+	if len(groups) == 0 {
+		fmt.Fprintln(os.Stderr, "ctx: no archived agents")
+		return nil
+	}
+	fmt.Println()
+	fmt.Println("archived agent sessions (current project):")
+	for _, g := range groups {
+		label := g.DirName
+		if !g.Timestamp.IsZero() {
+			label = g.Timestamp.UTC().Format("2006-01-02T15:04Z")
+		}
+		plural := "agents"
+		if len(g.Agents) == 1 {
+			plural = "agent"
+		}
+		fmt.Printf("\n  %s  (%d %s)\n", label, len(g.Agents), plural)
+		for _, a := range g.Agents {
+			fmt.Printf("    %s\n", a.Name)
+		}
+	}
+	return nil
 }
 
 func showAgents(projectDir string) error {
@@ -547,7 +588,7 @@ func showAgents(projectDir string) error {
 
 	if effective.Agents.Mode == "off" || effective.Agents.Mode == "" {
 		fmt.Println()
-		fmt.Println("no agents captured yet — run ctx agents --v1 or --v2 to enable")
+		fmt.Println("no agents captured yet — run ctx agents --on to enable")
 		return nil
 	}
 
@@ -573,6 +614,20 @@ func showAgents(projectDir string) error {
 		}
 		fmt.Printf("  %-22s %-10s stopped %s\n", a.Name, a.Type, age)
 	}
+	return nil
+}
+
+func cmdAgentsShow(projectDir, agentID string) error {
+	projectHash := snapshot.ProjectHash(projectDir)
+	content, err := snapshot.ReadAgent(projectHash, agentID)
+	if err != nil {
+		return err
+	}
+	if content == "" {
+		fmt.Fprintf(os.Stderr, "ctx: no snapshot found for agent %q\n", agentID)
+		return nil
+	}
+	fmt.Print(content)
 	return nil
 }
 
@@ -672,10 +727,11 @@ Usage:
   ctx config --local             Show only local config
   ctx config --debug true|false  Enable or disable verbose hook logging
   ctx agents                     Show agents mode and captured agents
-  ctx agents --v1                Enable v1 subagent capture
-  ctx agents --v2                Enable v2 subagent capture (richer)
-  ctx agents --off               Disable subagent capture
-  ctx agents --local --v1        Set mode in local project config
+  ctx agents show <name>         Print full snapshot for a captured agent
+  ctx agents archive             List archived agent sessions
+  ctx agents --on                Enable agent capture
+  ctx agents --off               Disable agent capture
+  ctx agents --local --on        Set mode in local project config
   ctx reset             Clear snapshots (current directory or all projects)
   ctx doctor            Check installation health
   ctx logs              Show last 20 hook log entries

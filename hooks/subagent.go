@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/AgusRdz/ctx/agents"
@@ -16,14 +15,15 @@ import (
 
 // SubagentStopInput is the JSON payload Claude Code sends to SubagentStop hooks via stdin.
 type SubagentStopInput struct {
-	SessionID  string `json:"session_id"`
-	AgentName  string `json:"agent_name"`
-	Output     string `json:"output"`
-	ProjectDir string `json:"cwd"`
+	SessionID      string `json:"session_id"`
+	AgentName      string `json:"agent_name"`
+	Output         string `json:"output"`
+	ProjectDir     string `json:"cwd"`
+	TranscriptPath string `json:"transcript_path"`
 }
 
 // RunSubagentStop handles the SubagentStop hook invocation.
-// Captures subagent final output (v1 and v2) and internal state (v2).
+// Reads the sub-agent's transcript, summarizes it via claude -p, and stores a named snapshot.
 func RunSubagentStop() error {
 	data, err := io.ReadAll(os.Stdin)
 	if err != nil {
@@ -43,43 +43,51 @@ func RunSubagentStop() error {
 		projectDir, _ = os.Getwd()
 	}
 
-	// Read effective config for this project
 	cfg, err := config.EffectiveConfig(projectDir)
 	if err != nil {
 		logging.Log("subagent | ERROR: reading config: %v", err)
 		return nil // non-fatal
 	}
 
-	if cfg.Agents.Mode == "off" || cfg.Agents.Mode == "" {
+	if cfg.Agents.Mode != "on" {
 		return nil
 	}
 
 	projectHash := snapshot.ProjectHash(projectDir)
-
-	// Determine agent name and type
-	name := strings.TrimSpace(input.AgentName)
-	agentType := "custom"
-	if name == "" {
-		name = fmt.Sprintf("agent-%d", time.Now().Unix())
-		agentType = "general"
+	now := time.Now()
+	name := agents.AgentName(projectDir, now)
+	agentType := "general"
+	if input.AgentName != "" {
+		agentType = "custom"
 	}
 
-	// For v2: check for internal state file written by PreCompact in subagent context
-	var internalState string
-	if cfg.Agents.Mode == "v2" && input.SessionID != "" {
-		internalPath := agents.InternalStatePath(projectHash, input.SessionID)
-		if stateData, readErr := os.ReadFile(internalPath); readErr == nil {
-			internalState = string(stateData)
-			os.Remove(internalPath) // clean up temp file
+	// Find and summarize the agent's transcript
+	transcriptPath := input.TranscriptPath
+	if transcriptPath == "" {
+		transcriptPath = agents.FindAgentTranscript(input.SessionID)
+	}
+
+	var summary string
+	if transcriptPath != "" {
+		lines, extractErr := snapshot.ExtractTranscriptLines(transcriptPath, 30)
+		if extractErr == nil && lines != "" {
+			generated, genErr := agents.GenerateAgentSummary(lines, projectDir)
+			if genErr != nil {
+				logging.Log("subagent | WARNING: summary generation failed: %v", genErr)
+			} else {
+				summary = generated
+			}
 		}
+	}
+	if summary == "" {
+		summary = input.Output
 	}
 
 	s := agents.AgentSnapshot{
-		Name:          name,
-		Type:          agentType,
-		StoppedAt:     time.Now(),
-		FinalOutput:   input.Output,
-		InternalState: internalState,
+		Name:        name,
+		Type:        agentType,
+		StoppedAt:   now,
+		FinalOutput: summary,
 	}
 
 	if err := agents.WriteAgentSnapshot(projectHash, s); err != nil {
@@ -87,7 +95,6 @@ func RunSubagentStop() error {
 		return nil
 	}
 
-	logging.Log("subagent | agent=%s | type=%s | project=%s | mode=%s | status=ok",
-		name, agentType, projectDir, cfg.Agents.Mode)
+	logging.Log("subagent | agent=%s | type=%s | project=%s | status=ok", name, agentType, projectDir)
 	return nil
 }

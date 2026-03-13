@@ -1,8 +1,10 @@
 package agents
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -13,11 +15,10 @@ import (
 
 // AgentSnapshot holds metadata and content for a captured subagent.
 type AgentSnapshot struct {
-	Name          string
-	Type          string // custom | general
-	StoppedAt     time.Time
-	FinalOutput   string
-	InternalState string // empty for v1, populated for v2
+	Name        string
+	Type        string // custom | general
+	StoppedAt   time.Time
+	FinalOutput string
 }
 
 // AgentsDir returns the agents directory for a project hash.
@@ -25,15 +26,128 @@ func AgentsDir(projectHash string) string {
 	return filepath.Join(config.DataDir(), projectHash, "agents")
 }
 
+// ArchiveDir returns the archive parent directory for a project hash.
+func ArchiveDir(projectHash string) string {
+	return filepath.Join(AgentsDir(projectHash), "archive")
+}
+
 // AgentSnapshotPath returns the path for an agent's snapshot file.
 func AgentSnapshotPath(projectHash, name string) string {
 	return filepath.Join(AgentsDir(projectHash), name+".md")
 }
 
-// InternalStatePath returns the path for a temporary v2 internal state file.
-// Keyed by session ID to link PreCompact to SubagentStop.
-func InternalStatePath(projectHash, sessionID string) string {
-	return filepath.Join(AgentsDir(projectHash), ".pending-"+sessionID+".md")
+// AgentName builds a name for an agent snapshot: {branch}-{YYYYMMDD-HHMMSS}.
+// Falls back to no-branch-{timestamp} if git is unavailable.
+func AgentName(projectDir string, t time.Time) string {
+	branch := gitBranch(projectDir)
+	ts := t.UTC().Format("20060102-150405")
+	return branch + "-" + ts
+}
+
+// gitBranch returns the current git branch name, sanitized for use as a filename.
+func gitBranch(projectDir string) string {
+	cmd := exec.Command("git", "-C", projectDir, "rev-parse", "--abbrev-ref", "HEAD")
+	out, err := cmd.Output()
+	if err != nil {
+		return "no-branch"
+	}
+	branch := strings.TrimSpace(string(out))
+	if branch == "" || branch == "HEAD" {
+		return "no-branch"
+	}
+	branch = strings.ReplaceAll(branch, "/", "-")
+	branch = strings.ReplaceAll(branch, "\\", "-")
+	branch = strings.ReplaceAll(branch, " ", "-")
+	return branch
+}
+
+// FindAgentTranscript searches ~/.claude/projects/ for a .jsonl file matching sessionID.
+func FindAgentTranscript(sessionID string) string {
+	if sessionID == "" {
+		return ""
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	claudeProjects := filepath.Join(home, ".claude", "projects")
+	entries, err := os.ReadDir(claudeProjects)
+	if err != nil {
+		return ""
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		candidate := filepath.Join(claudeProjects, entry.Name(), sessionID+".jsonl")
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+	}
+	return ""
+}
+
+// ArchiveCurrentAgents moves all current agent snapshot files to archive/{YYYYMMDD-HHMMSS}/.
+// No-ops if there are no current agents.
+func ArchiveCurrentAgents(projectHash string) error {
+	dir := AgentsDir(projectHash)
+	entries, err := os.ReadDir(dir)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("ctx: %w", err)
+	}
+
+	var toMove []string
+	for _, entry := range entries {
+		if entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
+			continue
+		}
+		if strings.HasSuffix(entry.Name(), ".md") {
+			toMove = append(toMove, entry.Name())
+		}
+	}
+	if len(toMove) == 0 {
+		return nil
+	}
+
+	archiveSlot := filepath.Join(ArchiveDir(projectHash), time.Now().UTC().Format("20060102-150405"))
+	if err := os.MkdirAll(archiveSlot, 0o755); err != nil {
+		return fmt.Errorf("ctx: %w", err)
+	}
+	for _, name := range toMove {
+		src := filepath.Join(dir, name)
+		dst := filepath.Join(archiveSlot, name)
+		if err := os.Rename(src, dst); err != nil {
+			return fmt.Errorf("ctx: %w", err)
+		}
+	}
+	return nil
+}
+
+// GenerateAgentSummary calls claude -p to produce a short summary of what a sub-agent did.
+func GenerateAgentSummary(transcriptLines, projectDir string) (string, error) {
+	prompt := fmt.Sprintf(`Summarize what this sub-agent did in 2-4 bullet points. Be concise and specific.
+Focus on: what task it was given, what actions it took, what it produced or changed.
+No preamble. Respond in plain text with bullet points starting with "- ".
+
+AGENT TRANSCRIPT (last entries):
+%s`, transcriptLines)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "claude", "-p", prompt)
+	if projectDir != "" {
+		cmd.Dir = projectDir
+	}
+	cmd.Env = filterEnv(os.Environ(), "CLAUDECODE")
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("ctx: claude -p failed: %w", err)
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
 // WriteAgentSnapshot writes an agent snapshot to disk.
@@ -44,19 +158,6 @@ func WriteAgentSnapshot(projectHash string, s AgentSnapshot) error {
 	}
 	content := formatAgentSnapshot(s)
 	path := AgentSnapshotPath(projectHash, s.Name)
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		return fmt.Errorf("ctx: %w", err)
-	}
-	return nil
-}
-
-// WriteInternalState writes a v2 temporary internal state file keyed by session ID.
-func WriteInternalState(projectHash, sessionID, content string) error {
-	dir := AgentsDir(projectHash)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return fmt.Errorf("ctx: %w", err)
-	}
-	path := InternalStatePath(projectHash, sessionID)
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		return fmt.Errorf("ctx: %w", err)
 	}
@@ -78,7 +179,7 @@ func ReadAgentSnapshots(projectHash string) ([]AgentSnapshot, error) {
 	var snapshots []AgentSnapshot
 	for _, entry := range entries {
 		if entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
-			continue // skip hidden files and directories
+			continue
 		}
 		if !strings.HasSuffix(entry.Name(), ".md") {
 			continue
@@ -96,7 +197,7 @@ func ReadAgentSnapshots(projectHash string) ([]AgentSnapshot, error) {
 	return snapshots, nil
 }
 
-// ClearAgentSnapshots removes all agent snapshots (including hidden temp files) for a project.
+// ClearAgentSnapshots removes all agent snapshots for a project.
 func ClearAgentSnapshots(projectHash string) error {
 	dir := AgentsDir(projectHash)
 	entries, err := os.ReadDir(dir)
@@ -122,14 +223,7 @@ func formatAgentSnapshot(s AgentSnapshot) string {
 	b.WriteString(fmt.Sprintf("_Stopped: %s_\n", s.StoppedAt.UTC().Format("2006-01-02T15:04Z")))
 	b.WriteString(fmt.Sprintf("_Type: %s_\n", s.Type))
 	b.WriteString("\n")
-
-	if s.InternalState != "" {
-		b.WriteString("## Internal State (captured pre-compaction)\n")
-		b.WriteString(s.InternalState)
-		b.WriteString("\n\n")
-	}
-
-	b.WriteString("## Final Output\n")
+	b.WriteString("## Summary\n")
 	b.WriteString(s.FinalOutput)
 	b.WriteString("\n")
 	return b.String()
@@ -155,17 +249,17 @@ func parseAgentSnapshot(content string) AgentSnapshot {
 		}
 	}
 
-	// Extract final output section
+	// Extract summary section — support both "## Summary" and legacy "## Final Output"
 	inOutput := false
 	var outputLines []string
 	for _, line := range lines {
-		if strings.TrimSpace(line) == "## Final Output" {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "## Summary" || trimmed == "## Final Output" {
 			inOutput = true
 			continue
 		}
 		if inOutput {
-			// Stop at next ## section
-			if strings.HasPrefix(strings.TrimSpace(line), "## ") {
+			if strings.HasPrefix(trimmed, "## ") {
 				break
 			}
 			outputLines = append(outputLines, line)
@@ -173,7 +267,6 @@ func parseAgentSnapshot(content string) AgentSnapshot {
 	}
 	s.FinalOutput = strings.TrimSpace(strings.Join(outputLines, "\n"))
 
-	// Infer type from name if not parsed
 	if s.Type == "" {
 		if strings.HasPrefix(s.Name, "agent-") {
 			s.Type = "general"
@@ -182,4 +275,16 @@ func parseAgentSnapshot(content string) AgentSnapshot {
 		}
 	}
 	return s
+}
+
+// filterEnv returns a copy of env with the named variable removed.
+func filterEnv(env []string, key string) []string {
+	prefix := key + "="
+	filtered := make([]string, 0, len(env))
+	for _, e := range env {
+		if !strings.HasPrefix(e, prefix) {
+			filtered = append(filtered, e)
+		}
+	}
+	return filtered
 }
