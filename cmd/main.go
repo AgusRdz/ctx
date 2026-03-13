@@ -495,7 +495,7 @@ func cmdAgents() error {
 	local := false
 	mode := ""
 
-	// subcommands: ctx agents show <name>, ctx agents archive
+	// subcommands: ctx agents show <name>, ctx agents archive, ctx agents inject <name> [dir]
 	if len(args) > 0 {
 		switch args[0] {
 		case "show":
@@ -505,6 +505,15 @@ func cmdAgents() error {
 			return cmdAgentsShow(dir, args[1])
 		case "archive":
 			return cmdAgentsArchive(dir)
+		case "inject":
+			if len(args) < 2 {
+				return fmt.Errorf("ctx: usage: ctx agents inject <agent-name> [dir]")
+			}
+			targetDir := dir
+			if len(args) >= 3 {
+				targetDir = args[2]
+			}
+			return cmdAgentsInject(dir, targetDir, args[1])
 		}
 	}
 
@@ -521,6 +530,7 @@ func cmdAgents() error {
 			fmt.Fprintln(os.Stderr, "  (no flags)        Show active mode and list captured agents")
 			fmt.Fprintln(os.Stderr, "  show <name>       Print full snapshot for a captured agent")
 			fmt.Fprintln(os.Stderr, "  archive           List archived agent sessions")
+			fmt.Fprintln(os.Stderr, "  inject <name> [dir]  Inject agent context as session snapshot for dir")
 			fmt.Fprintln(os.Stderr, "  --on              Enable agent capture")
 			fmt.Fprintln(os.Stderr, "  --off             Disable agent capture")
 			fmt.Fprintln(os.Stderr, "  --local           Write to local project config instead of global")
@@ -631,6 +641,23 @@ func cmdAgentsShow(projectDir, agentID string) error {
 	return nil
 }
 
+func cmdAgentsInject(sourceProjectDir, targetDir, agentName string) error {
+	projectHash := snapshot.ProjectHash(sourceProjectDir)
+	content, err := snapshot.ReadAgent(projectHash, agentName)
+	if err != nil {
+		return err
+	}
+	if content == "" {
+		fmt.Fprintf(os.Stderr, "ctx: agent %q not found\n", agentName)
+		return nil
+	}
+	if err := snapshot.Write(targetDir, content); err != nil {
+		return fmt.Errorf("ctx: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "ctx: injected agent %q context into %s\n", agentName, targetDir)
+	return nil
+}
+
 func cmdLogs() error {
 	n := 20
 	all := false
@@ -728,6 +755,7 @@ Usage:
   ctx config --debug true|false  Enable or disable verbose hook logging
   ctx agents                     Show agents mode and captured agents
   ctx agents show <name>         Print full snapshot for a captured agent
+  ctx agents inject <name> [dir] Inject agent context as session snapshot for dir
   ctx agents archive             List archived agent sessions
   ctx agents --on                Enable agent capture
   ctx agents --off               Disable agent capture
