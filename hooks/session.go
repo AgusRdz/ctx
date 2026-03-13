@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/AgusRdz/ctx/agents"
+	"github.com/AgusRdz/ctx/config"
 	"github.com/AgusRdz/ctx/logging"
 	"github.com/AgusRdz/ctx/snapshot"
 )
@@ -27,8 +29,8 @@ type SessionInput struct {
 
 // RunSession handles the SessionStart hook invocation.
 // If a snapshot exists for the project, prints it to stdout.
+// If agents mode is enabled, appends the agent activity block.
 func RunSession() error {
-	// Read stdin
 	data, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		return fmt.Errorf("ctx: reading stdin: %w", err)
@@ -52,18 +54,31 @@ func RunSession() error {
 
 	if content == "" {
 		logging.Log("session | project=%s | snapshot=none", projectDir)
-		return nil
+	} else {
+		// Prepend staleness warning if the snapshot is old
+		if age := snapshotAge(content); age > staleThreshold {
+			days := int(age.Hours() / 24)
+			content = fmt.Sprintf("> ⚠️ This snapshot is %d days old — context may be stale.\n\n", days) + content
+		}
+		fmt.Print(content)
+		logging.Log("session | project=%s | snapshot=found", projectDir)
 	}
 
-	// Prepend staleness warning if the snapshot is old
-	if age := snapshotAge(content); age > staleThreshold {
-		days := int(age.Hours() / 24)
-		content = fmt.Sprintf("> ⚠️ This snapshot is %d days old — context may be stale.\n\n", days) + content
+	// Inject agent activity if enabled
+	cfg, cfgErr := config.EffectiveConfig(projectDir)
+	if cfgErr == nil && cfg.Agents.InjectOnStart && cfg.Agents.Mode != "off" && cfg.Agents.Mode != "" {
+		projectHash := snapshot.ProjectHash(projectDir)
+		agentSnapshots, readErr := agents.ReadAgentSnapshots(projectHash)
+		if readErr == nil && len(agentSnapshots) > 0 {
+			block := agents.BuildInjectionBlock(agentSnapshots, cfg.Agents.StalenessDays, cfg.Agents.MaxInject)
+			if block != "" {
+				fmt.Println()
+				fmt.Print(block)
+				logging.Log("session | agents_injected=%d", len(agentSnapshots))
+			}
+		}
 	}
 
-	// Print to stdout — Claude Code injects this as context
-	fmt.Print(content)
-	logging.Log("session | project=%s | snapshot=found", projectDir)
 	return nil
 }
 

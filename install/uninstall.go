@@ -28,6 +28,14 @@ func Uninstall() error {
 		fmt.Fprintln(os.Stderr, "ctx: data removed")
 	}
 
+	// 3a. Delete global config directory
+	configDir := config.GlobalConfigDir()
+	if err := os.RemoveAll(configDir); err != nil {
+		fmt.Fprintf(os.Stderr, "ctx: warning: failed to remove config dir: %v\n", err)
+	} else {
+		fmt.Fprintln(os.Stderr, "ctx: config removed")
+	}
+
 	// 3. Remove PATH entry on Windows
 	if runtime.GOOS == "windows" {
 		removeFromWindowsPath()

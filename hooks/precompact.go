@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/AgusRdz/ctx/agents"
+	"github.com/AgusRdz/ctx/config"
 	"github.com/AgusRdz/ctx/logging"
 	"github.com/AgusRdz/ctx/snapshot"
 )
@@ -69,6 +71,15 @@ func RunPreCompact() error {
 	if err := snapshot.Write(projectDir, content); err != nil {
 		logging.Log("precompact | ERROR: %v", err)
 		return err
+	}
+
+	// v2: also write internal state keyed by session ID for SubagentStop to pick up
+	if input.SessionID != "" {
+		projectHash := snapshot.ProjectHash(projectDir)
+		cfg, cfgErr := config.EffectiveConfig(projectDir)
+		if cfgErr == nil && cfg.Agents.Mode == "v2" {
+			_ = agents.WriteInternalState(projectHash, input.SessionID, content)
+		}
 	}
 
 	duration := time.Since(start)
