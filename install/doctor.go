@@ -3,6 +3,7 @@ package install
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 
 	"github.com/AgusRdz/ctx/config"
@@ -38,6 +39,19 @@ func Doctor() {
 			} else {
 				fmt.Println("[ok] hook binary path matches current binary")
 			}
+
+			// Check SubagentStop hook based on active mode
+			cfg, cfgErr := config.EffectiveConfig("")
+			if cfgErr == nil && (cfg.Agents.Mode == "v1" || cfg.Agents.Mode == "v2") {
+				hasSubagent := hasCtxHook(hooks, "SubagentStop", "hook subagent")
+				if hasSubagent {
+					fmt.Printf("[ok] SubagentStop hook installed (mode: %s)\n", cfg.Agents.Mode)
+				} else {
+					fmt.Printf("[!] SubagentStop hook not installed (agents mode=%s requires it)\n", cfg.Agents.Mode)
+					fmt.Println("    fix: ctx init")
+					issues++
+				}
+			}
 		} else {
 			if !hasPC {
 				fmt.Println("[!] PreCompact hook not installed")
@@ -63,12 +77,28 @@ func Doctor() {
 	dataDir := config.DataDir()
 	fmt.Printf("[ok] data directory: %s\n", dataDir)
 
-	// 5. Show debug mode status
-	c := config.Load()
-	if c.Debug {
-		fmt.Println("[ok] debug mode: enabled")
+	// 5. Check global config
+	globalPath := config.GlobalConfigPath()
+	if _, err := os.Stat(globalPath); err == nil {
+		fmt.Printf("[ok] global config: %s\n", globalPath)
 	} else {
-		fmt.Println("[ok] debug mode: disabled (ctx config --debug true to enable)")
+		fmt.Printf("[!] global config not found: %s\n", globalPath)
+		fmt.Println("    fix: ctx init  (auto-creates on first run)")
+		issues++
+	}
+
+	// 6. Show effective config
+	cfg, cfgErr := config.EffectiveConfig("")
+	if cfgErr != nil {
+		fmt.Printf("[!] config error: %v\n", cfgErr)
+		issues++
+	} else {
+		if cfg.Core.Debug {
+			fmt.Println("[ok] debug mode: enabled")
+		} else {
+			fmt.Println("[ok] debug mode: disabled (ctx config --debug true to enable)")
+		}
+		fmt.Printf("[ok] agents mode: %s\n", cfg.Agents.Mode)
 	}
 
 	if issues == 0 {

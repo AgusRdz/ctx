@@ -12,6 +12,13 @@ import (
 	"github.com/AgusRdz/ctx/config"
 )
 
+// AgentInfo holds lightweight metadata about a captured agent snapshot.
+type AgentInfo struct {
+	Name      string
+	Type      string
+	StoppedAt time.Time
+}
+
 // ProjectHash returns the sha256 hex of the absolute project path.
 func ProjectHash(projectDir string) string {
 	abs, err := filepath.Abs(projectDir)
@@ -83,6 +90,76 @@ func ClearAll() error {
 		}
 	}
 	return nil
+}
+
+// ClearAgents deletes the agents/ subdirectory for a project, leaving the main snapshot intact.
+func ClearAgents(projectDir string) error {
+	dir := filepath.Join(config.DataDir(), ProjectHash(projectDir), "agents")
+	if err := os.RemoveAll(dir); err != nil {
+		return fmt.Errorf("ctx: %w", err)
+	}
+	return nil
+}
+
+// ListAgents returns lightweight info about all captured agents for a project hash.
+func ListAgents(projectHash string) ([]AgentInfo, error) {
+	dir := filepath.Join(config.DataDir(), projectHash, "agents")
+	entries, err := os.ReadDir(dir)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("ctx: %w", err)
+	}
+
+	var results []AgentInfo
+	for _, entry := range entries {
+		if entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
+			continue
+		}
+		if !strings.HasSuffix(entry.Name(), ".md") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(dir, entry.Name()))
+		if err != nil {
+			continue
+		}
+		info := parseAgentInfo(string(data))
+		results = append(results, info)
+	}
+
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].StoppedAt.After(results[j].StoppedAt)
+	})
+	return results, nil
+}
+
+// parseAgentInfo extracts name, type, and stopped time from an agent snapshot file.
+func parseAgentInfo(content string) AgentInfo {
+	var info AgentInfo
+	for _, line := range strings.Split(content, "\n") {
+		trimmed := strings.TrimSpace(line)
+		switch {
+		case strings.HasPrefix(trimmed, "# Agent: "):
+			info.Name = strings.TrimPrefix(trimmed, "# Agent: ")
+		case strings.HasPrefix(trimmed, "_Stopped: ") && strings.HasSuffix(trimmed, "_"):
+			inner := strings.TrimPrefix(trimmed, "_Stopped: ")
+			inner = strings.TrimSuffix(inner, "_")
+			t, _ := time.Parse("2006-01-02T15:04Z", inner)
+			info.StoppedAt = t
+		case strings.HasPrefix(trimmed, "_Type: ") && strings.HasSuffix(trimmed, "_"):
+			info.Type = strings.TrimPrefix(trimmed, "_Type: ")
+			info.Type = strings.TrimSuffix(info.Type, "_")
+		}
+	}
+	if info.Type == "" {
+		if strings.HasPrefix(info.Name, "agent-") {
+			info.Type = "general"
+		} else {
+			info.Type = "custom"
+		}
+	}
+	return info
 }
 
 // SnapshotInfo holds metadata about a stored snapshot.

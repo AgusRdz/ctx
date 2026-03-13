@@ -28,7 +28,8 @@ func Log(format string, args ...interface{}) {
 
 // Debug appends a verbose entry to the log, but only when debug mode is enabled.
 func Debug(format string, args ...interface{}) {
-	if !config.Load().Debug {
+	cfg, err := config.EffectiveConfig("")
+	if err != nil || !cfg.Core.Debug {
 		return
 	}
 	Log("DEBUG "+format, args...)
