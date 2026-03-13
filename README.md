@@ -42,6 +42,12 @@ ctx init
 
 That's it. ctx works automatically from this point on.
 
+All release binaries include [build provenance attestations](https://github.com/AgusRdz/ctx/attestations) verifiable with the GitHub CLI:
+
+```sh
+gh attestation verify <binary> --repo AgusRdz/ctx
+```
+
 ## Commands
 
 ```
@@ -176,7 +182,7 @@ captured agents (current project):
 
 ## How it works
 
-1. **PreCompact hook** — Before Claude compacts, ctx reads the session transcript and git state, then calls `claude -p` to generate a semantic snapshot (with a 30s timeout). If `claude -p` is unavailable, it falls back to a deterministic snapshot derived from git diff/log and CLAUDE.md.
+1. **PreCompact hook** — Before Claude compacts, ctx reads the session transcript and git state, then calls `claude -p` to generate a semantic snapshot (with a 30s timeout). Transcript lines are pre-compressed before being sent — repetitive tool calls (e.g. 12 consecutive `Read` calls) are collapsed to a single entry with a repeat count, so the prompt covers more of the session history within the same token budget. If `claude -p` is unavailable, it falls back to a deterministic snapshot derived from git diff/log and CLAUDE.md.
 
 2. **SessionStart hook** — When a session starts (or resumes after compaction), ctx checks for an existing snapshot and prints it to stdout. Claude Code automatically injects this as context. If the snapshot is more than 7 days old, a staleness warning is prepended. If agents mode is enabled, captured subagent activity is appended.
 
