@@ -156,7 +156,10 @@ func inferGoal(ctx Context) string {
 
 // stripCodeFences removes markdown code block delimiters (```json ... ``` or ``` ... ```)
 // that claude -p sometimes wraps around JSON responses.
+// If the stripped result doesn't look like JSON, the original is returned unchanged
+// so the caller gets a useful parse error rather than silent garbage.
 func stripCodeFences(s string) string {
+	original := s
 	// Remove opening fence: ```json or ```
 	if i := strings.Index(s, "```"); i != -1 {
 		end := strings.Index(s, "\n")
@@ -168,7 +171,12 @@ func stripCodeFences(s string) string {
 	if i := strings.LastIndex(s, "```"); i != -1 {
 		s = s[:i]
 	}
-	return strings.TrimSpace(s)
+	stripped := strings.TrimSpace(s)
+	// Sanity guard: if result is too short or doesn't look like JSON, return original.
+	if len(stripped) < 10 || !strings.HasPrefix(stripped, "{") {
+		return original
+	}
+	return stripped
 }
 
 // filterEnv returns a copy of env with the named variable removed.
