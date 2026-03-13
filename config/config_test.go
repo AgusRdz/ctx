@@ -116,11 +116,11 @@ func TestSave_CreatesDirectory(t *testing.T) {
 func TestEffectiveConfigWithSources_GlobalOnly(t *testing.T) {
 	withTempDirs(t)
 
-	// Write global config with debug=true, mode=v1
+	// Write global config with debug=true, mode=on
 	globalPath := GlobalConfigPath()
 	cfg := &Config{
 		Core:   CoreConfig{Debug: true},
-		Agents: AgentsConfig{Mode: "v1", InjectOnStart: true, MaxInject: 5, StalenessDays: 7},
+		Agents: AgentsConfig{Mode: "on", InjectOnStart: true, MaxInject: 5, StalenessDays: 7},
 	}
 	if err := Save(globalPath, cfg); err != nil {
 		t.Fatalf("Save global: %v", err)
@@ -133,8 +133,8 @@ func TestEffectiveConfigWithSources_GlobalOnly(t *testing.T) {
 	if effective.Core.Debug != true {
 		t.Errorf("Debug: want true got %v", effective.Core.Debug)
 	}
-	if effective.Agents.Mode != "v1" {
-		t.Errorf("Mode: want v1 got %q", effective.Agents.Mode)
+	if effective.Agents.Mode != "on" {
+		t.Errorf("Mode: want on got %q", effective.Agents.Mode)
 	}
 	if sources.Debug != SourceGlobal {
 		t.Errorf("Debug source: want global got %v", sources.Debug)
@@ -149,7 +149,7 @@ func TestEffectiveConfigWithSources_LocalOverrides(t *testing.T) {
 	projectDir := t.TempDir()
 
 	// Global: mode=off
-	// Local: mode=v2
+	// Local: mode=on
 	globalPath := GlobalConfigPath()
 	Save(globalPath, &Config{
 		Core:   CoreConfig{},
@@ -158,14 +158,14 @@ func TestEffectiveConfigWithSources_LocalOverrides(t *testing.T) {
 
 	localPath := ProjectConfigPath(projectDir)
 	os.MkdirAll(filepath.Dir(localPath), 0o755)
-	os.WriteFile(localPath, []byte("agents:\n  mode: v2\n"), 0o644)
+	os.WriteFile(localPath, []byte("agents:\n  mode: on\n"), 0o644)
 
 	effective, sources, err := EffectiveConfigWithSources(projectDir)
 	if err != nil {
 		t.Fatalf("EffectiveConfigWithSources: %v", err)
 	}
-	if effective.Agents.Mode != "v2" {
-		t.Errorf("Mode: want v2 got %q", effective.Agents.Mode)
+	if effective.Agents.Mode != "on" {
+		t.Errorf("Mode: want on got %q", effective.Agents.Mode)
 	}
 	if sources.Mode != SourceLocal {
 		t.Errorf("Mode source: want local got %v", sources.Mode)

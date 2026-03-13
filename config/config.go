@@ -37,7 +37,7 @@ type CoreConfig struct {
 
 // AgentsConfig holds subagent capture settings.
 type AgentsConfig struct {
-	Mode          string `yaml:"mode"`            // off | v1 | v2
+	Mode          string `yaml:"mode"`            // off | on
 	InjectOnStart bool   `yaml:"inject_on_start"`
 	MaxInject     int    `yaml:"max_inject"`
 	StalenessDays int    `yaml:"staleness_days"`

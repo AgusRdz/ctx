@@ -2,6 +2,18 @@
 
 All notable changes to ctx are documented here.
 
+## [0.5.0] - 2026-03-13
+
+### Features
+- Agent capture v2: read sub-agent transcript at SubagentStop, summarize via claude -p — no longer requires compaction to get rich output
+- Agent naming: snapshots now use `{git-branch}-{YYYYMMDD-HHMMSS}` instead of raw session IDs
+- Archive on compaction: PreCompact moves current agents to `agents/archive/YYYYMMDD-HHMMSS/` before writing new snapshot
+- New commands: `ctx agents show <name>` (searches current + archive), `ctx agents archive` (lists archived sessions)
+- Simplified agent mode: v1/v2 replaced by `on`/`off`; existing v1/v2 configs auto-migrate
+
+### Breaking Changes
+- `ctx agents --v1` and `ctx agents --v2` removed — use `ctx agents --on`
+
 ## [0.4.0] - 2026-03-13
 
 ### Documentation

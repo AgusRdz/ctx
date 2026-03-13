@@ -137,5 +137,10 @@ func EffectiveConfigWithSources(projectRoot string) (*Config, *ConfigSources, er
 		}
 	}
 
+	// Migrate legacy v1/v2 mode values to "on"
+	if cfg.Agents.Mode == "v1" || cfg.Agents.Mode == "v2" {
+		cfg.Agents.Mode = "on"
+	}
+
 	return cfg, sources, nil
 }
