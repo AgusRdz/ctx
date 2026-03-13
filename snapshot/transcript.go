@@ -8,6 +8,65 @@ import (
 	"strings"
 )
 
+// compressLines groups consecutive lines with the same fingerprint, showing
+// a representative line with a repeat count. Reduces token waste from
+// repetitive tool calls before sending context to claude -p.
+func compressLines(lines []string) []string {
+	if len(lines) <= 5 {
+		return lines
+	}
+	type run struct {
+		line  string
+		count int
+		fp    string
+	}
+	var runs []run
+	for _, line := range lines {
+		fp := lineFingerprint(line)
+		if len(runs) > 0 && runs[len(runs)-1].fp == fp {
+			runs[len(runs)-1].count++
+		} else {
+			runs = append(runs, run{line, 1, fp})
+		}
+	}
+	result := make([]string, 0, len(runs))
+	for _, r := range runs {
+		if r.count > 1 {
+			result = append(result, fmt.Sprintf("%s (x%d)", r.line, r.count))
+		} else {
+			result = append(result, r.line)
+		}
+	}
+	return result
+}
+
+// lineFingerprint returns a normalized key for grouping similar transcript lines.
+// Bash tool calls are grouped by command prefix; other tools by name alone;
+// text messages by their first 60 characters.
+func lineFingerprint(line string) string {
+	const toolPrefix = "[tool] "
+	if idx := strings.Index(line, toolPrefix); idx != -1 {
+		rest := line[idx+len(toolPrefix):]
+		paren := strings.Index(rest, "(")
+		if paren == -1 {
+			return rest
+		}
+		toolName := rest[:paren]
+		if toolName == "Bash" {
+			arg := rest[paren:]
+			if len(arg) > 30 {
+				arg = arg[:30]
+			}
+			return toolPrefix + "Bash" + arg
+		}
+		return toolPrefix + toolName
+	}
+	if len(line) > 60 {
+		return line[:60]
+	}
+	return line
+}
+
 // transcriptMsg is a partial parse of a Claude Code .jsonl transcript line.
 type transcriptMsg struct {
 	Message struct {
@@ -48,15 +107,22 @@ func ExtractTranscriptLines(path string, maxLines int) (string, error) {
 		return "", fmt.Errorf("ctx: %w", err)
 	}
 
-	// Parse from the end, collect up to maxLines meaningful entries
+	// Extract up to 3x maxLines for better compression coverage.
+	extractLimit := maxLines * 3
 	var extracted []string
-	for i := len(rawLines) - 1; i >= 0 && len(extracted) < maxLines; i-- {
+	for i := len(rawLines) - 1; i >= 0 && len(extracted) < extractLimit; i-- {
 		if line := parseTranscriptLine(rawLines[i]); line != "" {
 			extracted = append([]string{line}, extracted...)
 		}
 	}
 
-	return strings.Join(extracted, "\n"), nil
+	// Compress repetitive lines, then limit to maxLines.
+	compressed := compressLines(extracted)
+	if len(compressed) > maxLines {
+		compressed = compressed[len(compressed)-maxLines:]
+	}
+
+	return strings.Join(compressed, "\n"), nil
 }
 
 // parseTranscriptLine extracts meaningful text from a single JSONL entry.

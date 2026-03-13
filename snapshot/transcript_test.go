@@ -175,6 +175,102 @@ func TestParseTranscriptLine_Empty(t *testing.T) {
 	}
 }
 
+func TestCompressLines_GroupsConsecutiveDuplicates(t *testing.T) {
+	lines := []string{
+		"assistant: [tool] Read(path=foo.go)",
+		"assistant: [tool] Read(path=bar.go)",
+		"assistant: [tool] Read(path=baz.go)",
+		"assistant: [tool] Bash(git status)",
+		"assistant: [tool] Bash(git diff)",
+		"user: looks good",
+	}
+	result := compressLines(lines)
+	// Read calls should be grouped (x3), different Bash calls not grouped, plus user line
+	if len(result) != 4 {
+		t.Fatalf("expected 4 groups, got %d: %v", len(result), result)
+	}
+	if !strings.Contains(result[0], "(x3)") {
+		t.Errorf("expected Read calls compressed to x3, got: %s", result[0])
+	}
+	if strings.Contains(result[1], "(x") || strings.Contains(result[2], "(x") {
+		t.Errorf("different Bash commands should not be grouped: %v", result[1:])
+	}
+}
+
+func TestCompressLines_NoCompressionWhenSmall(t *testing.T) {
+	lines := []string{"a", "b", "c"}
+	result := compressLines(lines)
+	if len(result) != 3 {
+		t.Errorf("small input should pass through unchanged, got %d lines", len(result))
+	}
+}
+
+func TestCompressLines_SingleRepeat(t *testing.T) {
+	lines := []string{
+		"assistant: [tool] Bash(go test ./...)",
+		"assistant: [tool] Bash(go test ./...)",
+		"user: run tests",
+		"assistant: [tool] Bash(go build ./...)",
+		"assistant: [tool] Bash(go build ./...)",
+		"user: done",
+	}
+	result := compressLines(lines)
+	if len(result) != 4 {
+		t.Fatalf("expected 4 groups, got %d: %v", len(result), result)
+	}
+	if !strings.Contains(result[0], "(x2)") {
+		t.Errorf("expected x2 for duplicate Bash, got: %s", result[0])
+	}
+}
+
+func TestLineFingerprint_GroupsReadByToolName(t *testing.T) {
+	fp1 := lineFingerprint("assistant: [tool] Read(path=/foo/bar.go)")
+	fp2 := lineFingerprint("assistant: [tool] Read(path=/baz/qux.go)")
+	if fp1 != fp2 {
+		t.Errorf("Read calls with different paths should have same fingerprint: %q vs %q", fp1, fp2)
+	}
+}
+
+func TestLineFingerprint_DistinguishesBashCommands(t *testing.T) {
+	fp1 := lineFingerprint("assistant: [tool] Bash(git status)")
+	fp2 := lineFingerprint("assistant: [tool] Bash(go test ./...)")
+	if fp1 == fp2 {
+		t.Error("different Bash commands should have different fingerprints")
+	}
+}
+
+func TestExtractTranscriptLines_CompressesRepeats(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "transcript.jsonl")
+
+	// Write 12 Read tool calls followed by 2 unique messages
+	var lines []string
+	for i := 0; i < 12; i++ {
+		lines = append(lines, buildToolUseLine("Read", ""))
+	}
+	lines = append(lines, buildTranscriptLine("user", "done"))
+	lines = append(lines, buildTranscriptLine("assistant", "ok"))
+
+	content := strings.Join(lines, "\n") + "\n"
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write: %v", err)
+	}
+
+	result, err := ExtractTranscriptLines(path, 20)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	resultLines := strings.Split(strings.TrimSpace(result), "\n")
+	// 12 identical Reads → 1 compressed line, plus 2 text lines = 3 total
+	if len(resultLines) != 3 {
+		t.Errorf("expected 3 lines after compression, got %d:\n%s", len(resultLines), result)
+	}
+	if !strings.Contains(resultLines[0], "x12") {
+		t.Errorf("expected compressed Read (x12), got: %s", resultLines[0])
+	}
+}
+
 func itoa(n int) string {
 	if n == 0 {
 		return "0"

@@ -230,6 +230,16 @@ func TestStripCodeFences(t *testing.T) {
 			input: "```json\n  {\"goal\":\"test\"}  \n```",
 			want:  `{"goal":"test"}`,
 		},
+		{
+			name:  "sanity guard: non-json returned unchanged",
+			input: "Sorry, I cannot answer that.",
+			want:  "Sorry, I cannot answer that.",
+		},
+		{
+			name:  "sanity guard: too short returned unchanged",
+			input: "```json\nhello\n```",
+			want:  "```json\nhello\n```",
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
