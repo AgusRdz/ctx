@@ -66,9 +66,27 @@ case ":$PATH:" in
         "\$dir = '${WIN_DIR}'; \$cur = [Environment]::GetEnvironmentVariable('Path','User'); if (\$cur -notlike \"*\$dir*\") { [Environment]::SetEnvironmentVariable('Path', \$cur + ';' + \$dir, 'User') }"
       echo "PATH updated. Restart your terminal for changes to take effect."
     else
-      echo "NOTE: ${INSTALL_DIR} is not in your PATH."
-      echo "Add it with:"
-      echo "  export PATH=\"${INSTALL_DIR}:\$PATH\""
+      # Detect shell config file
+      SHELL_NAME="$(basename "${SHELL:-}")"
+      case "$SHELL_NAME" in
+        zsh)  SHELL_RC="$HOME/.zshrc" ;;
+        bash) SHELL_RC="$HOME/.bashrc" ;;
+        *)    SHELL_RC="" ;;
+      esac
+
+      PATH_LINE="export PATH=\"${INSTALL_DIR}:\$PATH\""
+
+      if [ -n "$SHELL_RC" ]; then
+        if ! grep -qF "$INSTALL_DIR" "$SHELL_RC" 2>/dev/null; then
+          printf '\n# ctx\n%s\n' "$PATH_LINE" >> "$SHELL_RC"
+          echo "Added ${INSTALL_DIR} to PATH in $SHELL_RC"
+          echo "Reload your shell with: source $SHELL_RC"
+        fi
+      else
+        echo "NOTE: ${INSTALL_DIR} is not in your PATH."
+        echo "Add this line to your shell config file:"
+        echo "  $PATH_LINE"
+      fi
     fi
     echo ""
     ;;
