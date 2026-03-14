@@ -1,5 +1,9 @@
 # ctx
 
+<p align="center">
+  <img src="logo.png" alt="ctx logo" width="200" />
+</p>
+
 Keep your Claude Code session context healthy across compactions.
 
 ## The problem
