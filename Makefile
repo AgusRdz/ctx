@@ -1,4 +1,4 @@
-.PHONY: build test clean cross install changelog release release-patch release-minor release-major
+.PHONY: build test coverage clean cross install changelog release release-patch release-minor release-major
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
@@ -8,6 +8,10 @@ build:
 
 test:
 	docker compose run --rm dev go test ./... -v
+
+coverage:
+	docker compose run --rm dev go test -coverprofile=coverage.out ./...
+	docker compose run --rm dev go tool cover -func=coverage.out
 
 clean:
 	rm -rf bin/

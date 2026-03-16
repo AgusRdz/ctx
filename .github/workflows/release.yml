@@ -17,11 +17,11 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: "1.24"
 
@@ -69,6 +69,15 @@ jobs:
       - name: Generate checksums
         run: cd bin && sha256sum ctx-* > checksums.txt
 
+      - name: Sign checksums
+        env:
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+        run: |
+          echo "$SIGNING_KEY" > /tmp/signing.pem
+          openssl pkeyutl -sign -inkey /tmp/signing.pem -rawin -in bin/checksums.txt \
+            | xxd -p -c 256 | tr -d '\n' > bin/checksums.txt.sig
+          rm /tmp/signing.pem
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -81,6 +90,7 @@ jobs:
             bin/ctx-windows-amd64.exe
             bin/ctx-windows-arm64.exe
             bin/checksums.txt
+            bin/checksums.txt.sig
 
       - name: Attest build provenance
         uses: actions/attest-build-provenance@v2
