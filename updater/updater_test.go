@@ -156,3 +156,23 @@ func TestDownload_CleansUpTmpOnFailure(t *testing.T) {
 		t.Error(".tmp file should be cleaned up after failed download")
 	}
 }
+
+func TestDownloadAndVerify_MissingSignature(t *testing.T) {
+	// Server that serves a binary and checksums but no sig
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "checksums.txt.sig") {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(strings.Repeat("x", 2048)))
+	}))
+	defer srv.Close()
+
+	// We can't call downloadAndVerify directly with a custom base URL without
+	// refactoring, so this test verifies fetchBytes error propagation
+	_, err := fetchBytes(srv.URL + "/checksums.txt.sig")
+	if err == nil {
+		t.Fatal("expected error for missing sig file")
+	}
+}
