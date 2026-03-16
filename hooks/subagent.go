@@ -42,6 +42,8 @@ func RunSubagentStop() error {
 	if projectDir == "" {
 		projectDir, _ = os.Getwd()
 	}
+	// Normalize to git root so all subagents in the same repo share the same bucket
+	projectDir = agents.GitRoot(projectDir)
 
 	cfg, err := config.EffectiveConfig(projectDir)
 	if err != nil {

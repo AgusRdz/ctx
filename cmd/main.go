@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/AgusRdz/ctx/agents"
 	"github.com/AgusRdz/ctx/config"
 	"github.com/AgusRdz/ctx/hooks"
 	"github.com/AgusRdz/ctx/install"
@@ -251,6 +252,43 @@ func addToGitignore(projectDir string) {
 	}
 }
 
+// parseProjectFlag extracts --project <path> from args, resolving to the git root.
+// Returns the resolved dir and remaining args with --project stripped out.
+func parseProjectFlag(args []string, defaultDir string) (string, []string) {
+	dir := defaultDir
+	var remaining []string
+	for i := 0; i < len(args); i++ {
+		if args[i] == "--project" && i+1 < len(args) {
+			dir = agents.GitRoot(args[i+1])
+			i++
+		} else if strings.HasPrefix(args[i], "--project=") {
+			dir = agents.GitRoot(strings.TrimPrefix(args[i], "--project="))
+		} else {
+			remaining = append(remaining, args[i])
+		}
+	}
+	return dir, remaining
+}
+
+// parseSinceDuration parses a duration string like "7d" or "2w" and returns
+// the time.Time representing that many days/weeks ago.
+func parseSinceDuration(s string) (time.Time, error) {
+	s = strings.ToLower(strings.TrimSpace(s))
+	var n int
+	var unit string
+	if _, err := fmt.Sscanf(s, "%d%s", &n, &unit); err != nil || n <= 0 {
+		return time.Time{}, fmt.Errorf("ctx: invalid duration %q (use Nd or Nw, e.g. 7d or 2w)", s)
+	}
+	switch unit {
+	case "d":
+		return time.Now().Add(-time.Duration(n) * 24 * time.Hour), nil
+	case "w":
+		return time.Now().Add(-time.Duration(n) * 7 * 24 * time.Hour), nil
+	default:
+		return time.Time{}, fmt.Errorf("ctx: invalid duration unit %q (use d or w)", unit)
+	}
+}
+
 func cmdHook() error {
 	if len(os.Args) < 3 {
 		return fmt.Errorf("ctx: usage: ctx hook <precompact|session|subagent>")
@@ -490,32 +528,35 @@ func showEffectiveConfig(projectDir string) error {
 
 func cmdAgents() error {
 	args := os.Args[2:]
-	dir, _ := os.Getwd()
+	cwd, _ := os.Getwd()
 
-	local := false
-	mode := ""
-
-	// subcommands: ctx agents show <name>, ctx agents archive, ctx agents inject <name> [dir]
 	if len(args) > 0 {
 		switch args[0] {
 		case "show":
-			if len(args) < 2 {
-				return fmt.Errorf("ctx: usage: ctx agents show <agent-name>")
+			rest := args[1:]
+			dir, rest := parseProjectFlag(rest, cwd)
+			if len(rest) > 0 && rest[0] == "--all" {
+				return cmdAgentsShowAll(dir, rest[1:])
 			}
-			return cmdAgentsShow(dir, args[1])
+			if len(rest) == 0 {
+				return fmt.Errorf("ctx: usage: ctx agents show <agent-name>|--all [--project <path>] [--since Nd]")
+			}
+			return cmdAgentsShow(dir, rest[0])
 		case "archive":
-			return cmdAgentsArchive(dir)
-		case "inject":
-			if len(args) < 2 {
-				return fmt.Errorf("ctx: usage: ctx agents inject <agent-name> [dir]")
-			}
-			targetDir := dir
-			if len(args) >= 3 {
-				targetDir = args[2]
-			}
-			return cmdAgentsInject(dir, targetDir, args[1])
+			dir, _ := parseProjectFlag(args[1:], cwd)
+			return cmdAgentsArchive(agents.GitRoot(dir))
+		case "rm":
+			return cmdAgentsRm(cwd, args[1:])
+		case "summarize":
+			return cmdAgentsSummarize(cwd, args[1:])
+		case "--help", "-h":
+			printAgentsHelp()
+			return nil
 		}
 	}
+
+	local := false
+	mode := ""
 
 	for _, arg := range args {
 		switch arg {
@@ -526,14 +567,7 @@ func cmdAgents() error {
 		case "--off":
 			mode = "off"
 		case "--help", "-h":
-			fmt.Fprintln(os.Stderr, "Usage: ctx agents [--on|--off] [--local]")
-			fmt.Fprintln(os.Stderr, "  (no flags)        Show active mode and list captured agents")
-			fmt.Fprintln(os.Stderr, "  show <name>       Print full snapshot for a captured agent")
-			fmt.Fprintln(os.Stderr, "  archive           List archived agent sessions")
-			fmt.Fprintln(os.Stderr, "  inject <name> [dir]  Inject agent context as session snapshot for dir")
-			fmt.Fprintln(os.Stderr, "  --on              Enable agent capture")
-			fmt.Fprintln(os.Stderr, "  --off             Disable agent capture")
-			fmt.Fprintln(os.Stderr, "  --local           Write to local project config instead of global")
+			printAgentsHelp()
 			return nil
 		default:
 			return fmt.Errorf("ctx: unknown flag %q for agents", arg)
@@ -541,7 +575,7 @@ func cmdAgents() error {
 	}
 
 	if mode != "" {
-		if err := setConfigField(local, dir, func(cfg *config.Config) {
+		if err := setConfigField(local, cwd, func(cfg *config.Config) {
 			cfg.Agents.Mode = mode
 		}, fmt.Sprintf("agents mode set to %s", mode)); err != nil {
 			return err
@@ -549,7 +583,25 @@ func cmdAgents() error {
 		fmt.Fprintln(os.Stderr, "run ctx init to update hook registration")
 		return nil
 	}
-	return showAgents(dir)
+	return showAgents(agents.GitRoot(cwd))
+}
+
+func printAgentsHelp() {
+	fmt.Fprintln(os.Stderr, "Usage: ctx agents [--on|--off] [--local]")
+	fmt.Fprintln(os.Stderr, "  (no flags)                          Show active mode and list captured agents")
+	fmt.Fprintln(os.Stderr, "  show <name> [--project <path>]      Print full snapshot for a captured agent")
+	fmt.Fprintln(os.Stderr, "  show --all [--project <path>]       Print all agent snapshots")
+	fmt.Fprintln(os.Stderr, "         [--since Nd|Nw]              Filter by age (e.g. --since 7d)")
+	fmt.Fprintln(os.Stderr, "  archive [--project <path>]          List archived agent sessions")
+	fmt.Fprintln(os.Stderr, "  rm <name> [--project <path>]        Remove a specific agent snapshot")
+	fmt.Fprintln(os.Stderr, "  rm --before Nd|Nw [--project <path>]  Remove snapshots older than N days/weeks")
+	fmt.Fprintln(os.Stderr, "  rm --session <id> [--project <path>]  Remove an archived session")
+	fmt.Fprintln(os.Stderr, "  rm --all [--project <path>]         Remove all agent snapshots")
+	fmt.Fprintln(os.Stderr, "  summarize [--project <path>]        Summarize current agents via claude -p")
+	fmt.Fprintln(os.Stderr, "            [--all] [--since Nd|Nw]   Include archived / filter by age")
+	fmt.Fprintln(os.Stderr, "  --on                                Enable agent capture")
+	fmt.Fprintln(os.Stderr, "  --off                               Disable agent capture")
+	fmt.Fprintln(os.Stderr, "  --local                             Write to local project config instead of global")
 }
 
 func cmdAgentsArchive(projectDir string) error {
@@ -628,6 +680,7 @@ func showAgents(projectDir string) error {
 }
 
 func cmdAgentsShow(projectDir, agentID string) error {
+	projectDir = agents.GitRoot(projectDir)
 	projectHash := snapshot.ProjectHash(projectDir)
 	content, err := snapshot.ReadAgent(projectHash, agentID)
 	if err != nil {
@@ -641,20 +694,138 @@ func cmdAgentsShow(projectDir, agentID string) error {
 	return nil
 }
 
-func cmdAgentsInject(sourceProjectDir, targetDir, agentName string) error {
-	projectHash := snapshot.ProjectHash(sourceProjectDir)
-	content, err := snapshot.ReadAgent(projectHash, agentName)
+func cmdAgentsShowAll(projectDir string, args []string) error {
+	var since time.Time
+	for i := 0; i < len(args); i++ {
+		if args[i] == "--since" && i+1 < len(args) {
+			t, err := parseSinceDuration(args[i+1])
+			if err != nil {
+				return err
+			}
+			since = t
+			i++
+		}
+	}
+
+	projectDir = agents.GitRoot(projectDir)
+	projectHash := snapshot.ProjectHash(projectDir)
+	snapshots, err := agents.ReadAllAgentSnapshots(projectHash, since)
 	if err != nil {
 		return err
 	}
-	if content == "" {
-		fmt.Fprintf(os.Stderr, "ctx: agent %q not found\n", agentName)
+	if len(snapshots) == 0 {
+		fmt.Fprintln(os.Stderr, "ctx: no agent snapshots found")
 		return nil
 	}
-	if err := snapshot.Write(targetDir, content); err != nil {
-		return fmt.Errorf("ctx: %w", err)
+	for _, s := range snapshots {
+		fmt.Printf("# Agent: %s\n", s.Name)
+		fmt.Printf("_Stopped: %s_\n", s.StoppedAt.UTC().Format("2006-01-02T15:04Z"))
+		fmt.Printf("_Type: %s_\n\n", s.Type)
+		fmt.Println(s.FinalOutput)
+		fmt.Println("---")
 	}
-	fmt.Fprintf(os.Stderr, "ctx: injected agent %q context into %s\n", agentName, targetDir)
+	return nil
+}
+
+func cmdAgentsRm(cwd string, args []string) error {
+	dir, args := parseProjectFlag(args, cwd)
+	dir = agents.GitRoot(dir)
+	projectHash := snapshot.ProjectHash(dir)
+
+	if len(args) == 0 {
+		return fmt.Errorf("ctx: usage: ctx agents rm <name>|--before Nd|--session <id>|--all [--project <path>]")
+	}
+
+	switch args[0] {
+	case "--all":
+		if err := snapshot.RemoveAllAgents(projectHash); err != nil {
+			return err
+		}
+		fmt.Fprintln(os.Stderr, "ctx: all agent snapshots removed")
+	case "--before":
+		if len(args) < 2 {
+			return fmt.Errorf("ctx: --before requires a duration (e.g. 7d)")
+		}
+		cutoff, err := parseSinceDuration(args[1])
+		if err != nil {
+			return err
+		}
+		n, err := snapshot.RemoveAgentsBefore(projectHash, cutoff)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(os.Stderr, "ctx: removed %d agent snapshot(s)\n", n)
+	case "--session":
+		if len(args) < 2 {
+			return fmt.Errorf("ctx: --session requires a session ID")
+		}
+		if err := snapshot.RemoveAgentSession(projectHash, args[1]); err != nil {
+			return err
+		}
+		fmt.Fprintf(os.Stderr, "ctx: session %q removed\n", args[1])
+	default:
+		if err := snapshot.RemoveAgentSnapshot(projectHash, args[0]); err != nil {
+			return err
+		}
+		fmt.Fprintf(os.Stderr, "ctx: agent %q removed\n", args[0])
+	}
+	return nil
+}
+
+func cmdAgentsSummarize(cwd string, args []string) error {
+	dir, args := parseProjectFlag(args, cwd)
+	dir = agents.GitRoot(dir)
+	projectHash := snapshot.ProjectHash(dir)
+
+	includeAll := false
+	var since time.Time
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--all":
+			includeAll = true
+		case "--since":
+			if i+1 >= len(args) {
+				return fmt.Errorf("ctx: --since requires a duration (e.g. 7d)")
+			}
+			t, err := parseSinceDuration(args[i+1])
+			if err != nil {
+				return err
+			}
+			since = t
+			i++
+		}
+	}
+
+	var snapshots []agents.AgentSnapshot
+	var err error
+	if includeAll {
+		snapshots, err = agents.ReadAllAgentSnapshots(projectHash, since)
+	} else {
+		snapshots, err = agents.ReadAgentSnapshots(projectHash)
+		if err == nil && !since.IsZero() {
+			var filtered []agents.AgentSnapshot
+			for _, s := range snapshots {
+				if s.StoppedAt.After(since) {
+					filtered = append(filtered, s)
+				}
+			}
+			snapshots = filtered
+		}
+	}
+	if err != nil {
+		return err
+	}
+	if len(snapshots) == 0 {
+		fmt.Fprintln(os.Stderr, "ctx: no agent snapshots found")
+		return nil
+	}
+
+	fmt.Fprintf(os.Stderr, "ctx: summarizing %d agent(s) via claude -p...\n", len(snapshots))
+	summary, err := agents.GenerateCombinedSummary(snapshots, dir)
+	if err != nil {
+		return err
+	}
+	fmt.Println(summary)
 	return nil
 }
 
@@ -753,13 +924,19 @@ Usage:
   ctx config --global            Show only global config
   ctx config --local             Show only local config
   ctx config --debug true|false  Enable or disable verbose hook logging
-  ctx agents                     Show agents mode and captured agents
-  ctx agents show <name>         Print full snapshot for a captured agent
-  ctx agents inject <name> [dir] Inject agent context as session snapshot for dir
-  ctx agents archive             List archived agent sessions
-  ctx agents --on                Enable agent capture
-  ctx agents --off               Disable agent capture
-  ctx agents --local --on        Set mode in local project config
+  ctx agents                              Show agents mode and captured agents
+  ctx agents show <name>                  Print snapshot for a captured agent
+  ctx agents show <name> --project <p>    Same, for a different project
+  ctx agents show --all [--project <p>]   Print all agent snapshots
+             [--since Nd|Nw]              Filter by age
+  ctx agents archive [--project <p>]      List archived agent sessions
+  ctx agents rm <name>                    Remove a specific agent snapshot
+  ctx agents rm --before Nd               Remove snapshots older than N days/weeks
+  ctx agents rm --session <id>            Remove an archived session
+  ctx agents rm --all                     Remove all agent snapshots
+  ctx agents summarize [--all] [--since Nd]  AI summary of agent work
+  ctx agents --on                         Enable agent capture
+  ctx agents --off                        Disable agent capture
   ctx reset             Clear snapshots (current directory or all projects)
   ctx doctor            Check installation health
   ctx logs              Show last 20 hook log entries

@@ -8,8 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/AgusRdz/ctx/agents"
-	"github.com/AgusRdz/ctx/config"
 	"github.com/AgusRdz/ctx/logging"
 	"github.com/AgusRdz/ctx/snapshot"
 )
@@ -62,21 +60,6 @@ func RunSession() error {
 		}
 		fmt.Print(content)
 		logging.Log("session | project=%s | snapshot=found", projectDir)
-	}
-
-	// Inject agent activity if enabled
-	cfg, cfgErr := config.EffectiveConfig(projectDir)
-	if cfgErr == nil && cfg.Agents.InjectOnStart && cfg.Agents.Mode != "off" && cfg.Agents.Mode != "" {
-		projectHash := snapshot.ProjectHash(projectDir)
-		agentSnapshots, readErr := agents.ReadAgentSnapshots(projectHash)
-		if readErr == nil && len(agentSnapshots) > 0 {
-			block := agents.BuildInjectionBlock(agentSnapshots, cfg.Agents.StalenessDays, cfg.Agents.MaxInject)
-			if block != "" {
-				fmt.Println()
-				fmt.Print(block)
-				logging.Log("session | agents_injected=%d", len(agentSnapshots))
-			}
-		}
 	}
 
 	return nil

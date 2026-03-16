@@ -315,6 +315,83 @@ func List() ([]SnapshotInfo, int, error) {
 	return results, legacy, nil
 }
 
+// RemoveAgentSnapshot removes a specific agent snapshot from the current (non-archived) slot.
+func RemoveAgentSnapshot(projectHash, agentName string) error {
+	path := filepath.Join(config.DataDir(), projectHash, "agents", agentName+".md")
+	err := os.Remove(path)
+	if os.IsNotExist(err) {
+		return fmt.Errorf("ctx: agent %q not found", agentName)
+	}
+	if err != nil {
+		return fmt.Errorf("ctx: %w", err)
+	}
+	return nil
+}
+
+// RemoveAgentsBefore removes all agent snapshots (current + archive) stopped before cutoff.
+// Returns the count of files removed.
+func RemoveAgentsBefore(projectHash string, cutoff time.Time) (int, error) {
+	base := filepath.Join(config.DataDir(), projectHash, "agents")
+	return removeAgentFilesOlderThan(base, cutoff)
+}
+
+// RemoveAgentSession removes an archived session directory by its timestamp ID (e.g. "20260313-150405").
+func RemoveAgentSession(projectHash, sessionID string) error {
+	path := filepath.Join(config.DataDir(), projectHash, "agents", "archive", sessionID)
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return fmt.Errorf("ctx: session %q not found", sessionID)
+	}
+	return os.RemoveAll(path)
+}
+
+// RemoveAllAgents removes all agent snapshots and archives for a project.
+func RemoveAllAgents(projectHash string) error {
+	path := filepath.Join(config.DataDir(), projectHash, "agents")
+	return os.RemoveAll(path)
+}
+
+// removeAgentFilesOlderThan removes .md files under agentsDir (and its archive subdirs)
+// whose StoppedAt timestamp is before cutoff. Returns the count removed.
+func removeAgentFilesOlderThan(agentsDir string, cutoff time.Time) (int, error) {
+	removed := 0
+
+	dirsToCheck := []string{agentsDir}
+	archiveBase := filepath.Join(agentsDir, "archive")
+	archiveDirs, _ := os.ReadDir(archiveBase)
+	for _, entry := range archiveDirs {
+		if entry.IsDir() {
+			dirsToCheck = append(dirsToCheck, filepath.Join(archiveBase, entry.Name()))
+		}
+	}
+
+	for _, dir := range dirsToCheck {
+		entries, err := os.ReadDir(dir)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return removed, fmt.Errorf("ctx: %w", err)
+		}
+		for _, entry := range entries {
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+				continue
+			}
+			p := filepath.Join(dir, entry.Name())
+			data, err := os.ReadFile(p)
+			if err != nil {
+				continue
+			}
+			info := parseAgentInfo(string(data))
+			if !info.StoppedAt.IsZero() && info.StoppedAt.Before(cutoff) {
+				if os.Remove(p) == nil {
+					removed++
+				}
+			}
+		}
+	}
+	return removed, nil
+}
+
 // goalFromSnapshot extracts the goal line from a formatted snapshot.
 func goalFromSnapshot(content string) string {
 	inGoal := false

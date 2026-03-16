@@ -277,6 +277,104 @@ func parseAgentSnapshot(content string) AgentSnapshot {
 	return s
 }
 
+// GitRoot returns the git repository root for the given directory.
+// Falls back to dir itself if not a git repo or git is unavailable.
+func GitRoot(dir string) string {
+	cmd := exec.Command("git", "-C", dir, "rev-parse", "--show-toplevel")
+	out, err := cmd.Output()
+	if err != nil {
+		return dir
+	}
+	root := strings.TrimSpace(string(out))
+	if root == "" {
+		return dir
+	}
+	return root
+}
+
+// ReadAllAgentSnapshots reads all agent snapshots for a project including archived ones.
+// If since is non-zero, only returns snapshots stopped after that time.
+// Results are sorted most recent first.
+func ReadAllAgentSnapshots(projectHash string, since time.Time) ([]AgentSnapshot, error) {
+	current, err := ReadAgentSnapshots(projectHash)
+	if err != nil {
+		return nil, err
+	}
+
+	archiveBase := filepath.Join(config.DataDir(), projectHash, "agents", "archive")
+	archiveDirs, err := os.ReadDir(archiveBase)
+	if err != nil && !os.IsNotExist(err) {
+		return nil, fmt.Errorf("ctx: %w", err)
+	}
+	for _, entry := range archiveDirs {
+		if !entry.IsDir() {
+			continue
+		}
+		slotDir := filepath.Join(archiveBase, entry.Name())
+		files, _ := os.ReadDir(slotDir)
+		for _, f := range files {
+			if f.IsDir() || !strings.HasSuffix(f.Name(), ".md") {
+				continue
+			}
+			data, err := os.ReadFile(filepath.Join(slotDir, f.Name()))
+			if err != nil {
+				continue
+			}
+			current = append(current, parseAgentSnapshot(string(data)))
+		}
+	}
+
+	if !since.IsZero() {
+		var filtered []AgentSnapshot
+		for _, s := range current {
+			if s.StoppedAt.After(since) {
+				filtered = append(filtered, s)
+			}
+		}
+		current = filtered
+	}
+
+	sort.Slice(current, func(i, j int) bool {
+		return current[i].StoppedAt.After(current[j].StoppedAt)
+	})
+	return current, nil
+}
+
+// GenerateCombinedSummary calls claude -p to summarize work across multiple agent snapshots.
+func GenerateCombinedSummary(snapshots []AgentSnapshot, projectDir string) (string, error) {
+	if len(snapshots) == 0 {
+		return "", fmt.Errorf("ctx: no snapshots to summarize")
+	}
+
+	var b strings.Builder
+	for _, s := range snapshots {
+		b.WriteString(fmt.Sprintf("## Agent: %s (%s)\n", s.Name, s.StoppedAt.UTC().Format("2006-01-02T15:04Z")))
+		b.WriteString(s.FinalOutput)
+		b.WriteString("\n\n")
+	}
+
+	prompt := fmt.Sprintf(`Summarize what these sub-agents accomplished as a whole.
+Group related work. Highlight what changed, what decisions were made, and any blockers.
+Be concise. Respond in plain markdown with bullet points.
+
+AGENT SUMMARIES:
+%s`, b.String())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "claude", "-p", prompt)
+	if projectDir != "" {
+		cmd.Dir = projectDir
+	}
+	cmd.Env = filterEnv(os.Environ(), "CLAUDECODE")
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("ctx: claude -p failed: %w", err)
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
 // filterEnv returns a copy of env with the named variable removed.
 func filterEnv(env []string, key string) []string {
 	prefix := key + "="
