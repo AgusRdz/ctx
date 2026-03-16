@@ -37,10 +37,7 @@ type CoreConfig struct {
 
 // AgentsConfig holds subagent capture settings.
 type AgentsConfig struct {
-	Mode          string `yaml:"mode"`            // off | on
-	InjectOnStart bool   `yaml:"inject_on_start"`
-	MaxInject     int    `yaml:"max_inject"`
-	StalenessDays int    `yaml:"staleness_days"`
+	Mode string `yaml:"mode"` // off | on
 }
 
 // DefaultConfig returns a Config with all defaults populated.
@@ -50,10 +47,7 @@ func DefaultConfig() *Config {
 			Debug: false,
 		},
 		Agents: AgentsConfig{
-			Mode:          "off",
-			InjectOnStart: true,
-			MaxInject:     5,
-			StalenessDays: 7,
+			Mode: "off",
 		},
 	}
 }
@@ -65,10 +59,7 @@ type partialConfig struct {
 		Debug *bool `yaml:"debug"`
 	} `yaml:"core"`
 	Agents struct {
-		Mode          *string `yaml:"mode"`
-		InjectOnStart *bool   `yaml:"inject_on_start"`
-		MaxInject     *int    `yaml:"max_inject"`
-		StalenessDays *int    `yaml:"staleness_days"`
+		Mode *string `yaml:"mode"`
 	} `yaml:"agents"`
 }
 
@@ -97,15 +88,6 @@ func applyPartial(base *Config, pc *partialConfig) *Config {
 	}
 	if pc.Agents.Mode != nil {
 		result.Agents.Mode = *pc.Agents.Mode
-	}
-	if pc.Agents.InjectOnStart != nil {
-		result.Agents.InjectOnStart = *pc.Agents.InjectOnStart
-	}
-	if pc.Agents.MaxInject != nil {
-		result.Agents.MaxInject = *pc.Agents.MaxInject
-	}
-	if pc.Agents.StalenessDays != nil {
-		result.Agents.StalenessDays = *pc.Agents.StalenessDays
 	}
 	return &result
 }

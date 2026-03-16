@@ -59,7 +59,7 @@ ctx init                          Install hooks in Claude Code
 ctx init --remove                 Remove hooks
 ctx init --status                 Check hook installation status
 ctx init --local                  Create local project config (.ctx/config.yml)
-ctx init --local --agents v1      Create local config with agents mode preset
+ctx init --local --agents on      Create local config with agents capture enabled
 ctx show                          Print current snapshot
 ctx show --project <path>         Print snapshot for a specific project
 ctx clear                         Delete current snapshot
@@ -70,10 +70,19 @@ ctx config --global               Show only global config
 ctx config --local                Show only local config
 ctx config --debug true|false     Enable or disable verbose hook logging
 ctx agents                        Show agents mode and captured agents
-ctx agents --v1                   Enable v1 subagent capture
-ctx agents --v2                   Enable v2 subagent capture (richer)
-ctx agents --off                  Disable subagent capture
-ctx agents --local --v1           Set mode in local project config
+ctx agents show <name>            Print full snapshot for a captured agent
+ctx agents show --all             Print all agent snapshots
+  [--project <path>] [--since Nd] Filter by project or age (e.g. --since 7d)
+ctx agents archive                List archived agent sessions
+ctx agents rm <name>              Remove a specific agent snapshot
+ctx agents rm --before Nd         Remove snapshots older than N days/weeks
+ctx agents rm --session <id>      Remove an archived session
+ctx agents rm --all               Remove all agent snapshots
+ctx agents summarize              AI summary of agent work via claude -p
+  [--all] [--since Nd] [--project <path>]
+ctx agents --on                   Enable agent capture
+ctx agents --off                  Disable agent capture
+ctx agents --local --on           Set mode in local project config
 ctx reset                         Clear snapshots (current directory or all)
 ctx doctor                        Check installation health
 ctx logs                          Show last 20 hook log entries
@@ -97,10 +106,7 @@ core:
   debug: false
 
 agents:
-  mode: off           # off | v1 | v2
-  inject_on_start: true
-  max_inject: 5
-  staleness_days: 7
+  mode: off           # off | on
 ```
 
 **Local config** — `{project}/.ctx/config.yml` (optional, project-level overrides)
@@ -108,7 +114,7 @@ agents:
 ```yaml
 # only include fields you want to override
 agents:
-  mode: v1
+  mode: on
 ```
 
 Create a local config with:
@@ -116,7 +122,7 @@ Create a local config with:
 ```sh
 ctx init --local
 # or with a preset mode:
-ctx init --local --agents v1
+ctx init --local --agents on
 ```
 
 `.ctx/` is automatically added to `.gitignore` — local config is a developer preference, not a team setting.
@@ -129,10 +135,7 @@ ctx config
 effective configuration
 ───────────────────────────────────────
 core.debug              false      [global]
-agents.mode             v1         [local]   ← override
-agents.inject_on_start  true       [global]
-agents.max_inject       5          [global]
-agents.staleness_days   7          [global]
+agents.mode             on         [local]   ← override
 
 global:  ~/.config/ctx/config.yml
 local:   /home/agus/projects/myapp/.ctx/config.yml
@@ -140,36 +143,22 @@ local:   /home/agus/projects/myapp/.ctx/config.yml
 
 ## Subagent capture (ctx agents)
 
-When you use Claude Code with subagents (general-purpose agents or custom agents defined in `.claude/agents/`), ctx can capture their activity and inject a summary into the main agent's context at the start of each session.
+When you use Claude Code with subagents (general-purpose agents or custom agents defined in `.claude/agents/`), ctx can capture their activity as human-readable snapshots. These are **not** injected into Claude's context — they exist purely for you to read, review, and share.
 
-Three modes:
+Agent snapshots capture what each subagent did: what task it was given, what actions it took, and what it produced. They're useful for writing tickets, explaining work to teammates, or just reviewing what happened in a long session.
 
-| Mode | Behavior |
-|------|----------|
-| `off` | Default. Only the main agent's context is tracked. |
-| `v1` | Captures the final output of each subagent when it stops. |
-| `v2` | Captures internal state on `PreCompact` + final output on `SubagentStop`. Richer context. |
-
-Enable globally:
+Enable agent capture:
 
 ```sh
-ctx agents --v1
+ctx agents --on
 ctx init   # re-register hooks to include SubagentStop
 ```
 
-Enable per project (without affecting other projects):
+Enable per project only:
 
 ```sh
-ctx init --local --agents v1
+ctx init --local --agents on
 ctx init
-```
-
-When a session starts with agents mode enabled and previous subagent activity exists, ctx injects a block like:
-
-```markdown
-## Subagent Activity (2 agents)
-- **refactor-agent** (custom): Extracted AuthService to /services/auth.go
-- **agent-1741234567** (general): Wrote 14 unit tests, 2 failing in jwt_test.go
 ```
 
 View captured agents for the current project:
@@ -177,26 +166,57 @@ View captured agents for the current project:
 ```sh
 ctx agents
 
-mode:    v1  [local override]
+mode:    on  [global]
 
 captured agents (current project):
-  refactor-agent     custom     stopped 14m ago
-  agent-1741234567   general    stopped 1h ago
+  feature-RES-219-20260313-150405   custom    stopped 14m ago
+  feature-RES-219-20260313-143201   general   stopped 1h ago
 ```
+
+Read what an agent did:
+
+```sh
+# one agent
+ctx agents show feature-RES-219-20260313-150405
+
+# all agents at once (works from any directory)
+ctx agents show --all --project /path/to/project
+
+# filter to last 2 days
+ctx agents show --all --since 2d
+```
+
+Get an AI-generated digest across all agents (useful for writing tickets):
+
+```sh
+ctx agents summarize
+ctx agents summarize --all --since 1w --project /path/to/project
+```
+
+Manage old snapshots:
+
+```sh
+ctx agents rm feature-RES-219-20260313-150405   # specific agent
+ctx agents rm --before 7d                        # older than 7 days
+ctx agents rm --session 20260313-150405          # entire archived session
+ctx agents rm --all                              # everything
+```
+
+Agent snapshots are grouped by session. When a compaction happens, current agents are archived under a timestamp slot — so you can still access them later with `ctx agents archive`.
 
 ## How it works
 
 1. **PreCompact hook** — Before Claude compacts, ctx reads the session transcript and git state, then calls `claude -p` to generate a semantic snapshot (with a 30s timeout). Transcript lines are pre-compressed before being sent — repetitive tool calls (e.g. 12 consecutive `Read` calls) are collapsed to a single entry with a repeat count, so the prompt covers more of the session history within the same token budget. If `claude -p` is unavailable, it falls back to a deterministic snapshot derived from git diff/log and CLAUDE.md.
 
-2. **SessionStart hook** — When a session starts (or resumes after compaction), ctx checks for an existing snapshot and prints it to stdout. Claude Code automatically injects this as context. If the snapshot is more than 7 days old, a staleness warning is prepended. If agents mode is enabled, captured subagent activity is appended.
+2. **SessionStart hook** — When a session starts (or resumes after compaction), ctx checks for an existing snapshot and prints it to stdout. Claude Code automatically injects this as context. If the snapshot is more than 7 days old, a staleness warning is prepended.
 
-3. **SubagentStop hook** (v1/v2 only) — When a subagent finishes, ctx captures its output and stores it in the project's agents directory.
+3. **SubagentStop hook** (agents on only) — When a subagent finishes, ctx captures its output and stores it in the project's agents directory.
 
 Snapshots are stored at:
 - Linux/macOS: `~/.local/share/ctx/{project-hash}/snapshot.md`
 - Windows: `%LOCALAPPDATA%\ctx\{project-hash}\snapshot.md`
 
-Agent snapshots (v1/v2):
+Agent snapshots:
 - Linux/macOS: `~/.local/share/ctx/{project-hash}/agents/{name}.md`
 - Windows: `%LOCALAPPDATA%\ctx\{project-hash}\agents\{name}.md`
 
@@ -257,7 +277,7 @@ ctx changelog
 
 ctx is not a memory tool. It doesn't accumulate knowledge across sessions, index conversations, or build a searchable history. It solves one specific problem: **keeping the current session coherent when context gets compacted**. One project, one snapshot, always overwritten.
 
-Agents mode captures subagent activity within the same session context — it does not persist agent history across sessions beyond the normal staleness window.
+Agents mode captures subagent activity as human-readable snapshots for review and handoff. They are never injected into Claude's context — the main snapshot is the only thing Claude sees.
 
 ## Development
 

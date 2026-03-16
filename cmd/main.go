@@ -511,9 +511,6 @@ func showEffectiveConfig(projectDir string) error {
 
 	printField("core.debug", effective.Core.Debug, sources.Debug)
 	printField("agents.mode", effective.Agents.Mode, sources.Mode)
-	printField("agents.inject_on_start", effective.Agents.InjectOnStart, sources.InjectOnStart)
-	printField("agents.max_inject", effective.Agents.MaxInject, sources.MaxInject)
-	printField("agents.staleness_days", effective.Agents.StalenessDays, sources.StalenessDays)
 
 	fmt.Println()
 	fmt.Printf("global:  %s\n", config.GlobalConfigPath())

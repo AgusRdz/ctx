@@ -25,15 +25,6 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Agents.Mode != "off" {
 		t.Errorf("expected Mode=off, got %q", cfg.Agents.Mode)
 	}
-	if cfg.Agents.InjectOnStart != true {
-		t.Errorf("expected InjectOnStart=true, got %v", cfg.Agents.InjectOnStart)
-	}
-	if cfg.Agents.MaxInject != 5 {
-		t.Errorf("expected MaxInject=5, got %d", cfg.Agents.MaxInject)
-	}
-	if cfg.Agents.StalenessDays != 7 {
-		t.Errorf("expected StalenessDays=7, got %d", cfg.Agents.StalenessDays)
-	}
 }
 
 func TestSaveLoad_Roundtrip(t *testing.T) {
@@ -42,7 +33,7 @@ func TestSaveLoad_Roundtrip(t *testing.T) {
 
 	original := &Config{
 		Core:   CoreConfig{Debug: true},
-		Agents: AgentsConfig{Mode: "v1", InjectOnStart: true, MaxInject: 3, StalenessDays: 14},
+		Agents: AgentsConfig{Mode: "on"},
 	}
 	if err := Save(path, original); err != nil {
 		t.Fatalf("Save failed: %v", err)
@@ -59,9 +50,6 @@ func TestSaveLoad_Roundtrip(t *testing.T) {
 	}
 	if loaded.Agents.Mode != original.Agents.Mode {
 		t.Errorf("Mode: want %q got %q", original.Agents.Mode, loaded.Agents.Mode)
-	}
-	if loaded.Agents.MaxInject != original.Agents.MaxInject {
-		t.Errorf("MaxInject: want %d got %d", original.Agents.MaxInject, loaded.Agents.MaxInject)
 	}
 }
 
@@ -85,18 +73,24 @@ func TestLoadPartial_InvalidYAML(t *testing.T) {
 }
 
 func TestApplyPartial_OnlyOverridesNonNil(t *testing.T) {
-	base := DefaultConfig() // InjectOnStart=true
+	base := DefaultConfig()
 
-	// Partial that explicitly sets InjectOnStart=false
-	f := false
+	// Partial that explicitly sets Mode=on
+	mode := "on"
 	pc := &partialConfig{}
-	pc.Agents.InjectOnStart = &f
+	pc.Agents.Mode = &mode
 
 	result := applyPartial(base, pc)
-	if result.Agents.InjectOnStart != false {
-		t.Error("expected InjectOnStart=false after explicit override")
+	if result.Agents.Mode != "on" {
+		t.Errorf("expected Mode=on after explicit override, got %q", result.Agents.Mode)
 	}
-	// Mode should still be default
+}
+
+func TestApplyPartial_NilModePreservesDefault(t *testing.T) {
+	base := DefaultConfig()
+	pc := &partialConfig{}
+
+	result := applyPartial(base, pc)
 	if result.Agents.Mode != "off" {
 		t.Errorf("expected Mode=off (default), got %q", result.Agents.Mode)
 	}
@@ -120,7 +114,7 @@ func TestEffectiveConfigWithSources_GlobalOnly(t *testing.T) {
 	globalPath := GlobalConfigPath()
 	cfg := &Config{
 		Core:   CoreConfig{Debug: true},
-		Agents: AgentsConfig{Mode: "on", InjectOnStart: true, MaxInject: 5, StalenessDays: 7},
+		Agents: AgentsConfig{Mode: "on"},
 	}
 	if err := Save(globalPath, cfg); err != nil {
 		t.Fatalf("Save global: %v", err)
@@ -153,7 +147,7 @@ func TestEffectiveConfigWithSources_LocalOverrides(t *testing.T) {
 	globalPath := GlobalConfigPath()
 	Save(globalPath, &Config{
 		Core:   CoreConfig{},
-		Agents: AgentsConfig{Mode: "off", InjectOnStart: true, MaxInject: 5, StalenessDays: 7},
+		Agents: AgentsConfig{Mode: "off"},
 	})
 
 	localPath := ProjectConfigPath(projectDir)
@@ -169,10 +163,6 @@ func TestEffectiveConfigWithSources_LocalOverrides(t *testing.T) {
 	}
 	if sources.Mode != SourceLocal {
 		t.Errorf("Mode source: want local got %v", sources.Mode)
-	}
-	// InjectOnStart not in local → from global
-	if sources.InjectOnStart != SourceGlobal {
-		t.Errorf("InjectOnStart source: want global got %v", sources.InjectOnStart)
 	}
 }
 

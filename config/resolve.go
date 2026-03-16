@@ -71,11 +71,8 @@ func (s FieldSource) String() string {
 
 // ConfigSources tracks the source of each config field.
 type ConfigSources struct {
-	Debug         FieldSource
-	Mode          FieldSource
-	InjectOnStart FieldSource
-	MaxInject     FieldSource
-	StalenessDays FieldSource
+	Debug FieldSource
+	Mode  FieldSource
 }
 
 // EffectiveConfigWithSources returns the effective config and the source of each field.
@@ -96,18 +93,6 @@ func EffectiveConfigWithSources(projectRoot string) (*Config, *ConfigSources, er
 		cfg.Agents.Mode = *globalPartial.Agents.Mode
 		sources.Mode = SourceGlobal
 	}
-	if globalPartial.Agents.InjectOnStart != nil {
-		cfg.Agents.InjectOnStart = *globalPartial.Agents.InjectOnStart
-		sources.InjectOnStart = SourceGlobal
-	}
-	if globalPartial.Agents.MaxInject != nil {
-		cfg.Agents.MaxInject = *globalPartial.Agents.MaxInject
-		sources.MaxInject = SourceGlobal
-	}
-	if globalPartial.Agents.StalenessDays != nil {
-		cfg.Agents.StalenessDays = *globalPartial.Agents.StalenessDays
-		sources.StalenessDays = SourceGlobal
-	}
 
 	// Apply local project config if it exists
 	if projectRoot != "" {
@@ -122,18 +107,6 @@ func EffectiveConfigWithSources(projectRoot string) (*Config, *ConfigSources, er
 		if localPartial.Agents.Mode != nil {
 			cfg.Agents.Mode = *localPartial.Agents.Mode
 			sources.Mode = SourceLocal
-		}
-		if localPartial.Agents.InjectOnStart != nil {
-			cfg.Agents.InjectOnStart = *localPartial.Agents.InjectOnStart
-			sources.InjectOnStart = SourceLocal
-		}
-		if localPartial.Agents.MaxInject != nil {
-			cfg.Agents.MaxInject = *localPartial.Agents.MaxInject
-			sources.MaxInject = SourceLocal
-		}
-		if localPartial.Agents.StalenessDays != nil {
-			cfg.Agents.StalenessDays = *localPartial.Agents.StalenessDays
-			sources.StalenessDays = SourceLocal
 		}
 	}
 
