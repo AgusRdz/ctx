@@ -77,7 +77,7 @@ jobs:
           echo "$SIGNING_KEY" | base64 -d > /tmp/signing.pem
           openssl pkey -in /tmp/signing.pem -noout
           openssl pkeyutl -sign -inkey /tmp/signing.pem -rawin -in bin/checksums.txt \
-            | xxd -p -c 256 | tr -d '\n' > bin/checksums.txt.sig
+            | base64 -w 0 > bin/checksums.txt.sig
           rm /tmp/signing.pem
           [ -s bin/checksums.txt.sig ] || { echo "ERROR: checksums.txt.sig is empty — signing failed"; exit 1; }
 

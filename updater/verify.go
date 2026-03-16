@@ -4,6 +4,7 @@ import (
 	"crypto/ed25519"
 	"crypto/sha256"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/pem"
 	"fmt"
@@ -35,17 +36,16 @@ func releasePublicKey() (ed25519.PublicKey, error) {
 	return key, nil
 }
 
-// verifySignature verifies that sig (hex-encoded) is a valid Ed25519 signature
+// verifySignature verifies that sig (base64-encoded) is a valid Ed25519 signature
 // over message using the embedded public key.
-func verifySignature(message []byte, sigHex string) error {
+func verifySignature(message []byte, sigB64 string) error {
 	pub, err := releasePublicKey()
 	if err != nil {
 		return err
 	}
-	sigHex = strings.TrimSpace(sigHex)
-	sig, err := hex.DecodeString(sigHex)
+	sig, err := base64.StdEncoding.DecodeString(strings.TrimSpace(sigB64))
 	if err != nil {
-		return fmt.Errorf("ctx: failed to decode signature hex: %w", err)
+		return fmt.Errorf("ctx: failed to decode signature: %w", err)
 	}
 	if !ed25519.Verify(pub, message, sig) {
 		return fmt.Errorf("ctx: signature verification failed — checksums.txt may be tampered")
