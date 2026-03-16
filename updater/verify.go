@@ -15,7 +15,7 @@ import (
 // It is used to verify release signatures and cannot be tampered with
 // at runtime — the key is the trust anchor for self-updates.
 const publicKeyPEM = `-----BEGIN PUBLIC KEY-----
-MCowBQYDK2VwAyEA3jGDOJtm+ONq2O2JARAurFMVZftsMrhmJUZPyiHqf4s=
+MCowBQYDK2VwAyEAg5vYSYU/3PpUttY1giCdutB+pX0e6hQWlGjNy8cFWJQ=
 -----END PUBLIC KEY-----`
 
 // releasePublicKey parses the embedded Ed25519 public key.
