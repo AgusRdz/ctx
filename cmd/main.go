@@ -406,6 +406,7 @@ func cmdConfig() error {
 		switch args[i] {
 		case "--local":
 			local = true
+			showLocal = true
 		case "--global":
 			showGlobal = true
 		case "--debug":
