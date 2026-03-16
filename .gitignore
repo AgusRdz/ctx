@@ -1,2 +1,4 @@
 bin/
 .claude
+signing_key.pem
+coverage.out
