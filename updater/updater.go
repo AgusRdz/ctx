@@ -41,7 +41,15 @@ func Run(currentVersion string) {
 		os.Exit(1)
 	}
 
-	if err := downloadAndVerify(latest, binaryName, exe); err != nil {
+	// Download and verify to a temp path — never touch the live binary until verified.
+	tmpPath := exe + ".new"
+	defer os.Remove(tmpPath)
+	if err := downloadAndVerify(latest, binaryName, tmpPath); err != nil {
+		fmt.Fprintf(os.Stderr, "ctx: update failed: %v\n", err)
+		os.Exit(1)
+	}
+
+	if err := replaceBinary(exe, tmpPath); err != nil {
 		fmt.Fprintf(os.Stderr, "ctx: update failed: %v\n", err)
 		os.Exit(1)
 	}
