@@ -73,10 +73,13 @@ jobs:
         env:
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
         run: |
-          echo "$SIGNING_KEY" > /tmp/signing.pem
+          set -euo pipefail
+          printf '%s\n' "$SIGNING_KEY" > /tmp/signing.pem
+          openssl pkey -in /tmp/signing.pem -noout
           openssl pkeyutl -sign -inkey /tmp/signing.pem -rawin -in bin/checksums.txt \
             | xxd -p -c 256 | tr -d '\n' > bin/checksums.txt.sig
           rm /tmp/signing.pem
+          [ -s bin/checksums.txt.sig ] || { echo "ERROR: checksums.txt.sig is empty — signing failed"; exit 1; }
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
