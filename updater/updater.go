@@ -34,7 +34,6 @@ func Run(currentVersion string) {
 	fmt.Printf("updating %s -> %s\n", currentVersion, latest)
 
 	binaryName := buildBinaryName()
-	url := fmt.Sprintf("https://github.com/%s/releases/download/%s/%s", repo, latest, binaryName)
 
 	exe, err := os.Executable()
 	if err != nil {
@@ -42,7 +41,7 @@ func Run(currentVersion string) {
 		os.Exit(1)
 	}
 
-	if err := download(url, exe); err != nil {
+	if err := downloadAndVerify(latest, binaryName, exe); err != nil {
 		fmt.Fprintf(os.Stderr, "ctx: update failed: %v\n", err)
 		os.Exit(1)
 	}
@@ -135,6 +134,57 @@ func download(url, destPath string) error {
 	}
 	if info.Size() < 1024 {
 		return fmt.Errorf("ctx: downloaded file too small (%d bytes), release may not exist", info.Size())
+	}
+
+	return nil
+}
+
+// fetchBytes fetches a URL and returns the response body.
+func fetchBytes(url string) ([]byte, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("ctx: fetch failed: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf("ctx: fetch returned %d for %s", resp.StatusCode, url)
+	}
+	return io.ReadAll(resp.Body)
+}
+
+// downloadAndVerify downloads a release binary and verifies its integrity:
+// 1. Downloads the binary to destPath
+// 2. Fetches checksums.txt and checksums.txt.sig for the release
+// 3. Verifies the signature on checksums.txt using the embedded public key
+// 4. Verifies the binary's SHA256 against checksums.txt
+// Removes destPath and returns an error if any step fails.
+func downloadAndVerify(version, binaryName, destPath string) error {
+	base := fmt.Sprintf("https://github.com/%s/releases/download/%s/", repo, version)
+
+	if err := download(base+binaryName, destPath); err != nil {
+		return err
+	}
+
+	checksumsTxt, err := fetchBytes(base + "checksums.txt")
+	if err != nil {
+		os.Remove(destPath)
+		return fmt.Errorf("ctx: failed to fetch checksums.txt: %w", err)
+	}
+
+	sigBytes, err := fetchBytes(base + "checksums.txt.sig")
+	if err != nil {
+		os.Remove(destPath)
+		return fmt.Errorf("ctx: failed to fetch checksums.txt.sig: %w", err)
+	}
+
+	if err := verifySignature(checksumsTxt, strings.TrimSpace(string(sigBytes))); err != nil {
+		os.Remove(destPath)
+		return err
+	}
+
+	if err := verifyBinaryChecksum(destPath, binaryName, checksumsTxt); err != nil {
+		os.Remove(destPath)
+		return err
 	}
 
 	return nil

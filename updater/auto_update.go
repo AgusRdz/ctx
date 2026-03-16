@@ -143,9 +143,8 @@ func RunBackgroundUpdate(currentVersion string) {
 
 	tmpPath := exe + ".new"
 	binaryName := buildBinaryName()
-	url := fmt.Sprintf("https://github.com/%s/releases/download/%s/%s", repo, latest, binaryName)
 
-	if err := download(url, tmpPath); err != nil {
+	if err := downloadAndVerify(latest, binaryName, tmpPath); err != nil {
 		os.Remove(tmpPath)
 		return
 	}
