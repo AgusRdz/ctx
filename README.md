@@ -193,6 +193,15 @@ ctx agents summarize
 ctx agents summarize --all --since 1w --project /path/to/project
 ```
 
+By default, `summarize` only includes agents from the current (non-archived) set.
+If archived agents exist for the project, ctx will prompt:
+
+```
+ctx: 7 archived agent(s) not included — include them? [y/N]
+```
+
+Answer `y` to include them, or press Enter to skip. Use `--all` to always include archives without prompting.
+
 Manage old snapshots:
 
 ```sh

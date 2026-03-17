@@ -848,6 +848,18 @@ func cmdAgentsSummarize(cwd string, args []string) error {
 			}
 			snapshots = filtered
 		}
+		if err == nil {
+			all, archiveErr := agents.ReadAllAgentSnapshots(projectHash, since)
+			if archiveErr == nil && len(all) > len(snapshots) {
+				archivedCount := len(all) - len(snapshots)
+				fmt.Fprintf(os.Stderr, "ctx: %d archived agent(s) not included — include them? [y/N] ", archivedCount)
+				var answer string
+				fmt.Scanln(&answer)
+				if strings.ToLower(strings.TrimSpace(answer)) == "y" {
+					snapshots = all
+				}
+			}
+		}
 	}
 	if err != nil {
 		return err

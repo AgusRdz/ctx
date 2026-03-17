@@ -2,6 +2,20 @@
 
 All notable changes to ctx are documented here.
 
+## [1.0.0] - 2026-03-17
+
+### Features
+- `ctx agents summarize` now prompts to include archived agents when they exist, instead of silently skipping them
+- `ctx agents --global` lists captured agents across all projects from any directory
+
+### Improvements
+- Removed dead code: `BuildInjectionBlock` (agent snapshots are for `summarize` only, not auto-injected into session context)
+
+### Bug Fixes
+- Signature verification uses base64 encoding — fixes round-trip failures on Linux/Ubuntu
+- `ctx update` writes to a temp file and only replaces the live binary after verification passes
+- `ctx config --local` now correctly shows the local config file
+
 ## [0.5.0] - 2026-03-13
 
 ### Features
