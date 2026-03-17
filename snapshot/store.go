@@ -315,6 +315,65 @@ func List() ([]SnapshotInfo, int, error) {
 	return results, legacy, nil
 }
 
+// ProjectAgentList holds agents captured for a single project.
+type ProjectAgentList struct {
+	ProjectDir string
+	Agents     []AgentInfo
+}
+
+// ListAllProjectAgents returns agents grouped by project across all stored projects,
+// sorted by the most recently stopped agent per project.
+func ListAllProjectAgents() ([]ProjectAgentList, error) {
+	dataDir := config.DataDir()
+	entries, err := os.ReadDir(dataDir)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("ctx: %w", err)
+	}
+
+	var results []ProjectAgentList
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		entryDir := filepath.Join(dataDir, entry.Name())
+
+		// Skip project dirs that have no agents directory
+		if _, serr := os.Stat(filepath.Join(entryDir, "agents")); os.IsNotExist(serr) {
+			continue
+		}
+
+		pathData, err := os.ReadFile(filepath.Join(entryDir, "path.txt"))
+		if err != nil {
+			continue // no path.txt — legacy or incomplete entry
+		}
+		projectDir := strings.TrimSpace(string(pathData))
+
+		agentList, err := ListAgents(entry.Name())
+		if err != nil || len(agentList) == 0 {
+			continue
+		}
+
+		results = append(results, ProjectAgentList{
+			ProjectDir: projectDir,
+			Agents:     agentList,
+		})
+	}
+
+	sort.Slice(results, func(i, j int) bool {
+		if len(results[i].Agents) == 0 {
+			return false
+		}
+		if len(results[j].Agents) == 0 {
+			return true
+		}
+		return results[i].Agents[0].StoppedAt.After(results[j].Agents[0].StoppedAt)
+	})
+	return results, nil
+}
+
 // RemoveAgentSnapshot removes a specific agent snapshot from the current (non-archived) slot.
 func RemoveAgentSnapshot(projectHash, agentName string) error {
 	path := filepath.Join(config.DataDir(), projectHash, "agents", agentName+".md")

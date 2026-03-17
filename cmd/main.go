@@ -554,12 +554,15 @@ func cmdAgents() error {
 	}
 
 	local := false
+	global := false
 	mode := ""
 
 	for _, arg := range args {
 		switch arg {
 		case "--local":
 			local = true
+		case "--global":
+			global = true
 		case "--on":
 			mode = "on"
 		case "--off":
@@ -581,12 +584,16 @@ func cmdAgents() error {
 		fmt.Fprintln(os.Stderr, "run ctx init to update hook registration")
 		return nil
 	}
+	if global {
+		return showAllAgents()
+	}
 	return showAgents(agents.GitRoot(cwd))
 }
 
 func printAgentsHelp() {
-	fmt.Fprintln(os.Stderr, "Usage: ctx agents [--on|--off] [--local]")
+	fmt.Fprintln(os.Stderr, "Usage: ctx agents [--on|--off] [--local] [--global]")
 	fmt.Fprintln(os.Stderr, "  (no flags)                          Show active mode and list captured agents")
+	fmt.Fprintln(os.Stderr, "  --global                            List captured agents across all projects")
 	fmt.Fprintln(os.Stderr, "  show <name> [--project <path>]      Print full snapshot for a captured agent")
 	fmt.Fprintln(os.Stderr, "  show --all [--project <path>]       Print all agent snapshots")
 	fmt.Fprintln(os.Stderr, "         [--since Nd|Nw]              Filter by age (e.g. --since 7d)")
@@ -673,6 +680,38 @@ func showAgents(projectDir string) error {
 			age = fmt.Sprintf("%s ago", d)
 		}
 		fmt.Printf("  %-22s %-10s stopped %s\n", a.Name, a.Type, age)
+	}
+	return nil
+}
+
+func showAllAgents() error {
+	projects, err := snapshot.ListAllProjectAgents()
+	if err != nil {
+		return err
+	}
+
+	fmt.Println()
+	if len(projects) == 0 {
+		fmt.Println("no agents captured yet")
+		return nil
+	}
+
+	home, _ := os.UserHomeDir()
+	fmt.Println("captured agents (all projects):")
+	for _, p := range projects {
+		label := p.ProjectDir
+		if home != "" && strings.HasPrefix(label, home) {
+			label = "~" + label[len(home):]
+		}
+		fmt.Printf("\n  %s\n", label)
+		for _, a := range p.Agents {
+			age := "unknown"
+			if !a.StoppedAt.IsZero() {
+				d := time.Since(a.StoppedAt).Round(time.Minute)
+				age = fmt.Sprintf("%s ago", d)
+			}
+			fmt.Printf("    %-22s %-10s stopped %s\n", a.Name, a.Type, age)
+		}
 	}
 	return nil
 }
