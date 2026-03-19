@@ -2,11 +2,24 @@
 
 All notable changes to ctx are documented here.
 
+## [1.1.1] - 2026-03-19
+
+### Bug Fixes
+- Enable color in Git Bash / MSYS2 via TERM and WT_SESSION fallback
+([d281f38](https://github.com/AgusRdz/ctx/commit/d281f3884ccc9a06ee721f72d22e895b25a46c03))
+
+### Miscellaneous
+- Add .gitattributes to enforce LF line endings
+([58be0fd](https://github.com/AgusRdz/ctx/commit/58be0fde14bf04ef15ae253fae483bdedacfcc9f))
 ## [1.1.0] - 2026-03-19
 
 ### Features
 - Workspace scanning, color output, security hardening
 ([db693d4](https://github.com/AgusRdz/ctx/commit/db693d41957b3c1a7e6cb3b28a1cc63c3cb5bcbf))
+
+### Miscellaneous
+- Release v1.1.0
+([9be95ab](https://github.com/AgusRdz/ctx/commit/9be95abf5f000a100d55da423801baf6cd1124cd))
 ## [1.0.0] - 2026-03-17
 
 ### Features
