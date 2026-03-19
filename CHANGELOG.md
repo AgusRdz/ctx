@@ -2,6 +2,11 @@
 
 All notable changes to ctx are documented here.
 
+## [1.1.2] - 2026-03-19
+
+### Bug Fixes
+- Use go-isatty for terminal detection (fixes color in Git Bash / MSYS2)
+([3df27ba](https://github.com/AgusRdz/ctx/commit/3df27babde6d1fe7e49159e91985649e1a1c0537))
 ## [1.1.1] - 2026-03-19
 
 ### Bug Fixes
@@ -11,6 +16,8 @@ All notable changes to ctx are documented here.
 ### Miscellaneous
 - Add .gitattributes to enforce LF line endings
 ([58be0fd](https://github.com/AgusRdz/ctx/commit/58be0fde14bf04ef15ae253fae483bdedacfcc9f))
+- Release v1.1.1
+([b14fceb](https://github.com/AgusRdz/ctx/commit/b14fceba53ce4fcc2edbf85f47c6df5b24ace0ee))
 ## [1.1.0] - 2026-03-19
 
 ### Features
