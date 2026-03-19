@@ -3,6 +3,10 @@
 // Color is disabled automatically when:
 //   - The NO_COLOR environment variable is set (https://no-color.org)
 //   - The target stream is not a character device (piped, redirected, CI)
+//
+// On Windows, Git Bash / MSYS2 uses PTY emulation so the fd reports as a
+// pipe rather than a char device. TERM, WT_SESSION, and COLORTERM are used
+// as a fallback to enable color in those environments.
 package tui
 
 import (
@@ -22,7 +26,15 @@ func isCharDevice(f *os.File) bool {
 	if err != nil {
 		return false
 	}
-	return (fi.Mode() & os.ModeCharDevice) != 0
+	if (fi.Mode() & os.ModeCharDevice) != 0 {
+		return true
+	}
+	// Git Bash / MSYS2 on Windows uses PTY emulation — the fd reports as a
+	// pipe, not a char device. Fall back to environment variables that
+	// indicate an interactive, color-capable terminal.
+	return os.Getenv("TERM") != "" ||
+		os.Getenv("WT_SESSION") != "" ||
+		os.Getenv("COLORTERM") != ""
 }
 
 // enabledFor returns true if color should be used when writing to f.
