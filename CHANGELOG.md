@@ -2,32 +2,102 @@
 
 All notable changes to ctx are documented here.
 
+## [1.1.0] - 2026-03-19
+
+### Features
+- Workspace scanning, color output, security hardening
+([db693d4](https://github.com/AgusRdz/ctx/commit/db693d41957b3c1a7e6cb3b28a1cc63c3cb5bcbf))
 ## [1.0.0] - 2026-03-17
 
 ### Features
-- `ctx agents summarize` now prompts to include archived agents when they exist, instead of silently skipping them
-- `ctx agents --global` lists captured agents across all projects from any directory
+- V1.0.0 — summarize archive prompt, remove dead inject code
+([ac48d11](https://github.com/AgusRdz/ctx/commit/ac48d113cb4afde55db98cfaeea3c47c6e27b102))
+## [0.7.10] - 2026-03-17
 
-### Improvements
-- Removed dead code: `BuildInjectionBlock` (agent snapshots are for `summarize` only, not auto-injected into session context)
+### CI/CD
+- Set run-name to Release <version> for cleaner Actions list
+([6452231](https://github.com/AgusRdz/ctx/commit/6452231b1109bd13f444cc64a49b853ef4f58410))
+
+### Features
+- Ctx agents --global lists agents across all projects
+([90cea27](https://github.com/AgusRdz/ctx/commit/90cea27094c52a9fc5530bbd71b8d260c76f1bf8))
+## [0.7.9] - 2026-03-16
 
 ### Bug Fixes
-- Signature verification uses base64 encoding — fixes round-trip failures on Linux/Ubuntu
-- `ctx update` writes to a temp file and only replaces the live binary after verification passes
-- `ctx config --local` now correctly shows the local config file
+- Ctx config --local now shows local config file
+([5b63a88](https://github.com/AgusRdz/ctx/commit/5b63a888da8db78b255baa713e783e31f89e8a21))
 
+### CI/CD
+- Skip homebrew commit when formula is unchanged
+([4eeee95](https://github.com/AgusRdz/ctx/commit/4eeee95e904595d0e91d73ea84d5784438e4647b))
+## [0.7.8] - 2026-03-16
+
+### Bug Fixes
+- Never overwrite live binary until verification passes
+([f5d2b1e](https://github.com/AgusRdz/ctx/commit/f5d2b1e4d6c839975f323bba3bf43a5bf972ef97))
+## [0.7.7] - 2026-03-16
+
+### Bug Fixes
+- Switch signature encoding from xxd hex to base64
+([570d7de](https://github.com/AgusRdz/ctx/commit/570d7de8288507092d56d0b35167e43388df54e2))
+## [0.7.6] - 2026-03-16
+
+### Miscellaneous
+- Ignore signing_key.pem and coverage.out
+([cffb34c](https://github.com/AgusRdz/ctx/commit/cffb34c2c71f8ebfb5b8ea0b6991dab80e1dc83f))
+
+### Testing
+- Add TestDownloadAndVerify_MissingSignature
+([653c25a](https://github.com/AgusRdz/ctx/commit/653c25a8a0dfad8c204aa1f2383bf4bee3057039))
+## [0.7.5] - 2026-03-16
+
+### CI/CD
+- Fix signing — base64-decode secret, rotate key pair
+([b8c2360](https://github.com/AgusRdz/ctx/commit/b8c23601e8ba3dad8eb157c37cef16ebb1645c33))
+## [0.7.4] - 2026-03-16
+
+### CI/CD
+- Fix signing step — pipefail, key validation, size check
+([2212bc1](https://github.com/AgusRdz/ctx/commit/2212bc144dbeba6e2b227798c83a802f5470cfd9))
+## [0.7.3] - 2026-03-16
+
+### Features
+- Verify checksums and signature on self-update
+([cb04ccb](https://github.com/AgusRdz/ctx/commit/cb04ccb7b05e62510c707a54f2f0ac34462a1f8a))
+## [0.7.2] - 2026-03-16
+
+### CI/CD
+- Stale-check workflow, signing, CONTRIBUTING, PR template, coverage
+([8c43a41](https://github.com/AgusRdz/ctx/commit/8c43a41a01747552a527373e0f6bdc9e7b795bcb))
+## [0.7.1] - 2026-03-16
+
+### Bug Fixes
+- Auto-register shell PATH and add logo to README
+([72c7602](https://github.com/AgusRdz/ctx/commit/72c7602acee3289d0f0834fbdb30176e07fff23d))
+
+### Features
+- Agents redesign — human-readable dumps, git-root scoping, rm/summarize
+([23b427d](https://github.com/AgusRdz/ctx/commit/23b427d4f1f006e217f65ce19944c487245dffed))
+
+### Miscellaneous
+- Add logo.png
+([7b7c840](https://github.com/AgusRdz/ctx/commit/7b7c840b121f874d670b65d01acbd516c20e23b8))
+- Remove dead inject config fields, update README for v0.7.0
+([d53e74e](https://github.com/AgusRdz/ctx/commit/d53e74e8beb7414e3c99bfd637c799c475a6e8c1))
+## [0.6.0] - 2026-03-13
+
+### CI/CD
+- Use git-cliff action for changelog and release notes
+([3bfb4bb](https://github.com/AgusRdz/ctx/commit/3bfb4bb4b02d1c8d832939f6b99a9d65a5190470))
+
+### Features
+- Ctx agents inject — cross-repo context injection from agent snapshots
+([56e5dba](https://github.com/AgusRdz/ctx/commit/56e5dbae6f32583eb8b75830d619616993978364))
 ## [0.5.0] - 2026-03-13
 
 ### Features
-- Agent capture v2: read sub-agent transcript at SubagentStop, summarize via claude -p — no longer requires compaction to get rich output
-- Agent naming: snapshots now use `{git-branch}-{YYYYMMDD-HHMMSS}` instead of raw session IDs
-- Archive on compaction: PreCompact moves current agents to `agents/archive/YYYYMMDD-HHMMSS/` before writing new snapshot
-- New commands: `ctx agents show <name>` (searches current + archive), `ctx agents archive` (lists archived sessions)
-- Simplified agent mode: v1/v2 replaced by `on`/`off`; existing v1/v2 configs auto-migrate
-
-### Breaking Changes
-- `ctx agents --v1` and `ctx agents --v2` removed — use `ctx agents --on`
-
+- Agents v2 — transcript capture, branch naming, archive on compaction
+([ae0847d](https://github.com/AgusRdz/ctx/commit/ae0847d44c681c2fcf354aa66acae0d097a14f5c))
 ## [0.4.0] - 2026-03-13
 
 ### Documentation
