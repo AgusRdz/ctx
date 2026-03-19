@@ -1,0 +1,25 @@
+# Enforce LF line endings for all text files
+* text=auto eol=lf
+
+# Explicitly LF for Go source and scripts
+*.go    text eol=lf
+*.sh    text eol=lf
+*.md    text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.json  text eol=lf
+*.toml  text eol=lf
+*.mod   text eol=lf
+*.sum   text eol=lf
+
+# Windows scripts keep CRLF
+*.ps1   text eol=crlf
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+
+# Binaries — no line ending conversion
+*.exe   binary
+*.bin   binary
+*.png   binary
+*.jpg   binary
+*.pem   binary
