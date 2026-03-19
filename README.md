@@ -4,38 +4,71 @@
   <img src="logo.png" alt="ctx logo" width="200" />
 </p>
 
-Keep your Claude Code session context healthy across compactions.
+**Preserve Claude Code session context across compactions — automatically.**
 
-## The problem
+When Claude Code hits its context window limit, it compacts the conversation. This is necessary, but lossy: the current goal, technical decisions, the file you were editing, what to do next — all of it can get diluted or lost. After two or three compactions, Claude may forget what you were building, repeat work, or contradict decisions you already made together.
 
-When Claude Code hits its context window limit, it compacts the conversation — summarizing everything into a shorter form. This is necessary, but it's lossy: architectural decisions, the current task goal, what file you were editing, what to do next — all of that can get diluted or lost.
+ctx hooks into Claude Code's **PreCompact** and **SessionStart** events to capture and restore a structured snapshot of your working context, every time.
 
-This isn't a memory problem. You don't need Claude to recall past sessions from days ago. The problem is simpler: **your current session loses fidelity every time it compacts**. After two or three compactions, Claude may forget what you were building, repeat work, or contradict decisions you already made together.
+---
 
-## What ctx does
+## How It Works
 
-ctx hooks into Claude Code's **PreCompact** and **SessionStart** events to capture and restore a structured snapshot of your working context — automatically, every time.
+```
+┌──────────────────────────────────────────────────────────────┐
+│ Claude Code session                                          │
+│                                                              │
+│  /compact triggered                                          │
+│       │                                                      │
+│       ▼                                                      │
+│  PreCompact hook → ctx reads transcript + git state          │
+│                  → calls claude -p to extract semantics      │
+│                  → writes snapshot.md (goal/decisions/next)  │
+│                                                              │
+│  Session resumes                                             │
+│       │                                                      │
+│       ▼                                                      │
+│  SessionStart hook → ctx finds snapshot for this project     │
+│                    → prints it to stdout                     │
+│                    → Claude Code injects it as context       │
+└──────────────────────────────────────────────────────────────┘
+```
 
-Before compaction, ctx extracts:
-- **Goal** — what you're building right now
-- **Decisions** — technical choices already made in this session
-- **In Progress** — what files are being modified
-- **Next** — what to do when context resumes
+The snapshot is a structured markdown document with four fields:
 
-When the session resumes after compaction (or when you start a new session in the same project), ctx restores the snapshot — so Claude picks up exactly where you left off.
+| Field | What it captures |
+|-------|-----------------|
+| **Goal** | What you're building right now |
+| **Decisions** | Technical choices already made this session |
+| **In Progress** | Files being modified |
+| **Next** | What to do when context resumes |
+
+---
 
 ## Install
 
-**Homebrew (macOS/Linux):**
+**macOS / Linux:**
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/AgusRdz/ctx/main/install.sh | sh
+```
+
+**Windows (PowerShell):**
+
+```powershell
+irm https://raw.githubusercontent.com/AgusRdz/ctx/main/install.ps1 | iex
+```
+
+**Homebrew (macOS / Linux):**
 
 ```sh
 brew install AgusRdz/tap/ctx
 ```
 
-**curl installer:**
+**With Go:**
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/AgusRdz/ctx/main/install.sh | sh
+go install github.com/AgusRdz/ctx@latest
 ```
 
 Then register the hooks:
@@ -46,54 +79,125 @@ ctx init
 
 That's it. ctx works automatically from this point on.
 
+Update to latest:
+
+```sh
+ctx update
+```
+
+## Verification
+
 All release binaries include [build provenance attestations](https://github.com/AgusRdz/ctx/attestations) verifiable with the GitHub CLI:
 
 ```sh
 gh attestation verify <binary> --repo AgusRdz/ctx
 ```
 
+---
+
+## Quick Start
+
+```sh
+ctx init                  # register PreCompact + SessionStart hooks
+ctx show                  # print the current snapshot
+ctx list                  # list all projects with snapshots
+ctx agents --on           # enable subagent capture
+ctx agents                # show captured agents for this project
+ctx agents workspace add ~/dev   # scan ~/dev for projects automatically
+```
+
+---
+
 ## Commands
 
+### Setup
+
 ```
-ctx init                          Install hooks in Claude Code
-ctx init --remove                 Remove hooks
-ctx init --status                 Check hook installation status
-ctx init --local                  Create local project config (.ctx/config.yml)
-ctx init --local --agents on      Create local config with agents capture enabled
-ctx show                          Print current snapshot
-ctx show --project <path>         Print snapshot for a specific project
-ctx clear                         Delete current snapshot
-ctx clear --agents-only           Clear only agent snapshots
-ctx list                          List all projects with snapshots
-ctx config                        Show effective configuration with sources
-ctx config --global               Show only global config
-ctx config --local                Show only local config
-ctx config --debug true|false     Enable or disable verbose hook logging
-ctx agents                        Show agents mode and captured agents
-ctx agents show <name>            Print full snapshot for a captured agent
-ctx agents show --all             Print all agent snapshots
-  [--project <path>] [--since Nd] Filter by project or age (e.g. --since 7d)
-ctx agents archive                List archived agent sessions
-ctx agents rm <name>              Remove a specific agent snapshot
-ctx agents rm --before Nd         Remove snapshots older than N days/weeks
-ctx agents rm --session <id>      Remove an archived session
-ctx agents rm --all               Remove all agent snapshots
-ctx agents summarize              AI summary of agent work via claude -p
-  [--all] [--since Nd] [--project <path>]
-ctx agents --on                   Enable agent capture
-ctx agents --off                  Disable agent capture
-ctx agents --local --on           Set mode in local project config
-ctx reset                         Clear snapshots (current directory or all)
-ctx doctor                        Check installation health
-ctx logs                          Show last 20 hook log entries
-ctx logs -n <count>               Show last N entries
-ctx logs --all                    Show all entries
-ctx changelog                     Show changes in the current version
-ctx changelog --full              Show full changelog history
-ctx uninstall                     Remove ctx completely (hooks, data, binary)
-ctx update                        Update to the latest version
-ctx version                       Show version
+ctx init                                 Install PreCompact and SessionStart hooks
+ctx init --remove                        Remove ctx hooks
+ctx init --status                        Check hook installation status
+ctx init --local                         Create local project config (.ctx/config.yml)
+ctx init --local --agents on             Create local config with agents capture enabled
 ```
+
+### Session
+
+```
+ctx show                                 Print current snapshot
+ctx show --project <path>                Print snapshot for a specific project
+ctx clear                                Delete current snapshot
+ctx clear --agents-only                  Clear only agent snapshots
+ctx list                                 List all projects with snapshots
+```
+
+### Agents
+
+```
+ctx agents                               Show mode and captured agents (current project)
+ctx agents --global                      Show agents across all projects
+ctx agents --on                          Enable agent capture
+ctx agents --off                         Disable agent capture
+ctx agents --local --on                  Set mode in local project config
+ctx agents show <name>                   Print full snapshot for one agent
+ctx agents show --all                    Print all agent snapshots
+  [--project <path>] [--since Nd|Nw]     Filter by project or age (e.g. --since 7d)
+ctx agents archive [--project <path>]    List archived agent sessions
+ctx agents summarize                     AI summary of agent work via claude -p
+  [--all] [--since Nd|Nw]                Include archived / filter by age
+  [--project <path>]
+ctx agents rm <name>                     Remove a specific agent snapshot
+ctx agents rm --before Nd|Nw             Remove snapshots older than N days/weeks
+ctx agents rm --session <id>             Remove an entire archived session
+ctx agents rm --all                      Remove all agent snapshots
+ctx agents --help                        Full agents command reference
+```
+
+### Workspace Scanning
+
+```
+ctx agents workspace list                Show configured workspaces, exclusions, markers
+ctx agents workspace add <path>          Add a workspace directory to scan
+ctx agents workspace rm <path>           Remove a workspace directory
+ctx agents workspace exclude <path>      Always skip this path during scans
+ctx agents workspace unexclude <path>    Remove a path from the exclusion list
+ctx agents workspace marker add <glob>   Add a custom root marker (e.g. *.csproj)
+ctx agents workspace marker rm <glob>    Remove a custom root marker
+ctx agents workspace boundary add <dir>  Add a custom boundary dir (e.g. .terraform)
+ctx agents workspace boundary rm <dir>   Remove a custom boundary dir
+```
+
+→ Full reference: [docs/workspace-scanning.md](docs/workspace-scanning.md)
+
+### Configuration
+
+```
+ctx config                               Show effective configuration with sources
+ctx config --global                      Show only global config file
+ctx config --local                       Show only local config file
+ctx config --debug true|false            Enable or disable verbose hook logging
+```
+
+### Diagnostics
+
+```
+ctx doctor                               Check hooks, binary path, claude availability
+ctx logs                                 Show last 20 hook log entries
+ctx logs -n <N>                          Show last N entries
+ctx logs --all                           Show all entries
+```
+
+### Maintenance
+
+```
+ctx update                               Update to the latest version
+ctx reset                                Interactively clear snapshots
+ctx uninstall                            Remove ctx completely (hooks, data, binary)
+ctx version                              Show version
+ctx changelog                            Show changes in the current version
+ctx changelog --full                     Show full changelog history
+```
+
+---
 
 ## Configuration
 
@@ -104,9 +208,21 @@ ctx uses two config layers that merge field-by-field. Local values win over glob
 ```yaml
 core:
   debug: false
+  claude_timeout: 30     # seconds; default 30
 
 agents:
-  mode: off           # off | on
+  mode: off              # off | on
+  workspaces:
+    - ~/dev
+    - ~/projects
+  scan:
+    max_depth: 3         # default 3
+    extra_root_markers:  # extend built-in markers
+      - "*.csproj"
+    extra_boundary_dirs: # extend built-in boundaries
+      - ".terraform"
+    exclude:             # always skip these paths
+      - ~/dev/scratch
 ```
 
 **Local config** — `{project}/.ctx/config.yml` (optional, project-level overrides)
@@ -121,7 +237,7 @@ Create a local config with:
 
 ```sh
 ctx init --local
-# or with a preset mode:
+# or with a preset:
 ctx init --local --agents on
 ```
 
@@ -134,24 +250,24 @@ ctx config
 
 effective configuration
 ───────────────────────────────────────
-core.debug              false      [global]
+core.debug              false      [default]
 agents.mode             on         [local]   ← override
 
 global:  ~/.config/ctx/config.yml
 local:   /home/agus/projects/myapp/.ctx/config.yml
 ```
 
-## Subagent capture (ctx agents)
+---
 
-When you use Claude Code with subagents (general-purpose agents or custom agents defined in `.claude/agents/`), ctx can capture their activity as human-readable snapshots. These are **not** injected into Claude's context — they exist purely for you to read, review, and share.
+## Subagent Capture
 
-Agent snapshots capture what each subagent did: what task it was given, what actions it took, and what it produced. They're useful for writing tickets, explaining work to teammates, or just reviewing what happened in a long session.
+When you use Claude Code with subagents (general-purpose agents or custom agents defined in `.claude/agents/`), ctx can capture their activity as human-readable snapshots. These are **not** injected into Claude's context — they exist for you to read, review, and share.
 
 Enable agent capture:
 
 ```sh
 ctx agents --on
-ctx init   # re-register hooks to include SubagentStop
+ctx init    # re-register hooks to include SubagentStop
 ```
 
 Enable per project only:
@@ -176,31 +292,24 @@ captured agents (current project):
 Read what an agent did:
 
 ```sh
-# one agent
 ctx agents show feature-RES-219-20260313-150405
 
-# all agents at once (works from any directory)
-ctx agents show --all --project /path/to/project
+# all agents at once
+ctx agents show --all
 
 # filter to last 2 days
 ctx agents show --all --since 2d
 ```
 
-Get an AI-generated digest across all agents (useful for writing tickets):
+Get an AI-generated digest across all agents:
 
 ```sh
 ctx agents summarize
-ctx agents summarize --all --since 1w --project /path/to/project
+ctx agents summarize --all --since 1w
 ```
 
 By default, `summarize` only includes agents from the current (non-archived) set.
-If archived agents exist for the project, ctx will prompt:
-
-```
-ctx: 7 archived agent(s) not included — include them? [y/N]
-```
-
-Answer `y` to include them, or press Enter to skip. Use `--all` to always include archives without prompting.
+If archived agents exist, ctx will prompt you to include them. Use `--all` to always include them.
 
 Manage old snapshots:
 
@@ -211,25 +320,42 @@ ctx agents rm --session 20260313-150405          # entire archived session
 ctx agents rm --all                              # everything
 ```
 
-Agent snapshots are grouped by session. When a compaction happens, current agents are archived under a timestamp slot — so you can still access them later with `ctx agents archive`.
+Agent snapshots are grouped by session. When a compaction happens, current agents are archived under a timestamp slot — accessible later with `ctx agents archive`.
 
-## How it works
+---
 
-1. **PreCompact hook** — Before Claude compacts, ctx reads the session transcript and git state, then calls `claude -p` to generate a semantic snapshot (with a 30s timeout). Transcript lines are pre-compressed before being sent — repetitive tool calls (e.g. 12 consecutive `Read` calls) are collapsed to a single entry with a repeat count, so the prompt covers more of the session history within the same token budget. If `claude -p` is unavailable, it falls back to a deterministic snapshot derived from git diff/log and CLAUDE.md.
+## Workspace Scanning
 
-2. **SessionStart hook** — When a session starts (or resumes after compaction), ctx checks for an existing snapshot and prints it to stdout. Claude Code automatically injects this as context. If the snapshot is more than 7 days old, a staleness warning is prepended.
+When you run `ctx agents` from a directory that isn't a recognized project root (e.g. a parent directory), ctx can scan configured workspace directories for projects automatically.
 
-3. **SubagentStop hook** (agents on only) — When a subagent finishes, ctx captures its output and stores it in the project's agents directory.
+```sh
+ctx agents workspace add ~/dev        # scan ~/dev for projects
+ctx agents workspace add ~/projects
+```
 
-Snapshots are stored at:
-- Linux/macOS: `~/.local/share/ctx/{project-hash}/snapshot.md`
-- Windows: `%LOCALAPPDATA%\ctx\{project-hash}\snapshot.md`
+A directory is identified as a project root when it contains any of these files:
 
-Agent snapshots:
-- Linux/macOS: `~/.local/share/ctx/{project-hash}/agents/{name}.md`
-- Windows: `%LOCALAPPDATA%\ctx\{project-hash}\agents\{name}.md`
+`.git` · `go.mod` · `package.json` · `Cargo.toml` · `pyproject.toml` · `setup.py` ·
+`pom.xml` · `build.gradle` · `build.gradle.kts` · `composer.json` · `Gemfile` ·
+`CMakeLists.txt` · `*.sln`
 
-## Snapshot format
+Scanning stops at boundary directories — it never descends into:
+
+`vendor` · `node_modules` · `__pycache__` · `target` · `dist` · `.next` · `.gradle`
+
+Add custom markers and boundaries for your stack:
+
+```sh
+ctx agents workspace marker add "*.csproj"        # .NET projects
+ctx agents workspace boundary add ".terraform"    # Terraform workspaces
+ctx agents workspace exclude ~/dev/scratch        # always skip this path
+```
+
+→ Full reference: [docs/workspace-scanning.md](docs/workspace-scanning.md)
+
+---
+
+## Snapshot Format
 
 ```markdown
 # Session Context
@@ -252,6 +378,12 @@ Building the authentication middleware
 Add token refresh endpoint and write integration tests
 ```
 
+Snapshots are stored at:
+- Linux/macOS: `~/.local/share/ctx/{project-hash}/snapshot.md`
+- Windows: `%LOCALAPPDATA%\ctx\{project-hash}\snapshot.md`
+
+---
+
 ## Debugging
 
 ```sh
@@ -262,25 +394,22 @@ ctx logs --all                 Show all entries
 ctx config --debug true        Enable verbose logging (context sizes, timings)
 ```
 
-Log file location:
+Log file:
 - Linux/macOS: `~/.local/share/ctx/debug.log`
 - Windows: `%LOCALAPPDATA%\ctx\debug.log`
+
+---
 
 ## Updates
 
 ctx updates itself automatically in the background. Once every 24 hours it checks for a new release, downloads it silently, and applies it on the next invocation — you'll see a one-line notification when it does.
 
-To update immediately:
-
 ```sh
-ctx update
+ctx update        # update immediately
+ctx changelog     # see what changed
 ```
 
-To see what changed:
-
-```sh
-ctx changelog
-```
+---
 
 ## What ctx is NOT
 
@@ -288,17 +417,19 @@ ctx is not a memory tool. It doesn't accumulate knowledge across sessions, index
 
 Agents mode captures subagent activity as human-readable snapshots for review and handoff. They are never injected into Claude's context — the main snapshot is the only thing Claude sees.
 
+---
+
 ## Development
 
 Requires Docker (no local Go installation needed):
 
 ```sh
-make build        # Build binary
-make test         # Run tests
-make install      # Build + install locally
-make cross        # Cross-compile all platforms
-make changelog    # Regenerate CHANGELOG.md (requires git-cliff)
-make release      # Auto-detect bump and release
+make build              # Build binary
+make test               # Run tests
+make install            # Build + install locally
+make cross              # Cross-compile all platforms
+make changelog          # Regenerate CHANGELOG.md (requires git-cliff)
+make release            # Auto-detect bump and release
 make release-patch / release-minor / release-major
 ```
 

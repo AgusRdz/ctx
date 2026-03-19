@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,7 +12,8 @@ import (
 	"time"
 )
 
-const claudeTimeout = 30 * time.Second
+// maxClaudeOutputBytes caps the output read from claude -p to prevent memory exhaustion.
+const maxClaudeOutputBytes = 512 * 1024 // 512 KB
 
 const promptTemplate = `Analyze this development session context and respond ONLY in valid JSON,
 no explanations, no markdown, no backticks.
@@ -44,20 +46,22 @@ type SnapshotData struct {
 
 // Generate calls claude -p to produce a semantic snapshot from collected context
 // and transcript lines. Returns formatted markdown.
-func Generate(ctx Context, transcriptLines string) (string, error) {
+func Generate(ctx Context, transcriptLines string, timeout time.Duration) (string, error) {
 	prompt := fmt.Sprintf(promptTemplate, ctx.DiffStat, ctx.ProjectMD, transcriptLines)
 
-	cmdCtx, cancel := context.WithTimeout(context.Background(), claudeTimeout)
+	cmdCtx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	cmd := exec.CommandContext(cmdCtx, "claude", "-p", prompt)
 	cmd.Dir = ctx.ProjectDir
-	// Clear CLAUDECODE env var to allow nested claude -p invocation
+	// Clear CLAUDECODE to allow nested claude -p invocation.
+	// CLAUDE_API_KEY is intentionally left in the environment — claude -p needs it.
 	cmd.Env = filterEnv(os.Environ(), "CLAUDECODE")
-	out, err := cmd.Output()
+
+	out, err := runLimited(cmd, cmdCtx, maxClaudeOutputBytes)
 	if err != nil {
 		if cmdCtx.Err() == context.DeadlineExceeded {
-			return "", fmt.Errorf("ctx: claude -p timed out after %s", claudeTimeout)
+			return "", fmt.Errorf("ctx: claude -p timed out after %s", timeout)
 		}
 		return "", fmt.Errorf("ctx: claude -p failed: %w", err)
 	}
@@ -177,6 +181,26 @@ func stripCodeFences(s string) string {
 		return original
 	}
 	return stripped
+}
+
+// runLimited starts cmd, reads at most maxBytes of stdout, drains the rest,
+// and waits for the process to exit. Prevents memory exhaustion from runaway output.
+func runLimited(cmd *exec.Cmd, cmdCtx context.Context, maxBytes int64) ([]byte, error) {
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+	out, readErr := io.ReadAll(io.LimitReader(stdout, maxBytes))
+	// Drain remaining output so the process is not blocked on a full pipe buffer.
+	_, _ = io.Copy(io.Discard, stdout)
+	waitErr := cmd.Wait()
+	if readErr != nil {
+		return nil, readErr
+	}
+	return out, waitErr
 }
 
 // filterEnv returns a copy of env with the named variable removed.

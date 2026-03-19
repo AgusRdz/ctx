@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 )
@@ -88,14 +89,29 @@ type contentItem struct {
 	} `json:"input"`
 }
 
+// maxTranscriptReadBytes is the maximum number of bytes read from the tail of
+// a transcript file. For large files we seek to the end and read backwards,
+// so we never load the entire file into memory.
+const maxTranscriptReadBytes = 10 * 1024 * 1024 // 10 MB
+
 // ExtractTranscriptLines reads the last maxLines meaningful entries from a
 // .jsonl transcript, returning parsed text instead of raw JSON.
+// For large files only the last maxTranscriptReadBytes are examined.
 func ExtractTranscriptLines(path string, maxLines int) (string, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return "", fmt.Errorf("ctx: %w", err)
 	}
 	defer f.Close()
+
+	// For large transcripts seek to the tail to avoid reading the whole file.
+	if info, err := f.Stat(); err == nil && info.Size() > maxTranscriptReadBytes {
+		if _, err := f.Seek(-maxTranscriptReadBytes, io.SeekEnd); err != nil {
+			return "", fmt.Errorf("ctx: %w", err)
+		}
+		// The seek may land mid-line; the first partial line will fail JSON
+		// parsing and be silently skipped by parseTranscriptLine.
+	}
 
 	var rawLines []string
 	scanner := bufio.NewScanner(f)

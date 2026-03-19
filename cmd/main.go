@@ -14,6 +14,7 @@ import (
 	"github.com/AgusRdz/ctx/hooks"
 	"github.com/AgusRdz/ctx/install"
 	"github.com/AgusRdz/ctx/snapshot"
+	"github.com/AgusRdz/ctx/tui"
 	"github.com/AgusRdz/ctx/updater"
 )
 
@@ -547,6 +548,8 @@ func cmdAgents() error {
 			return cmdAgentsRm(cwd, args[1:])
 		case "summarize":
 			return cmdAgentsSummarize(cwd, args[1:])
+		case "workspace":
+			return cmdAgentsWorkspace(args[1:])
 		case "--help", "-h":
 			printAgentsHelp()
 			return nil
@@ -591,22 +594,39 @@ func cmdAgents() error {
 }
 
 func printAgentsHelp() {
-	fmt.Fprintln(os.Stderr, "Usage: ctx agents [--on|--off] [--local] [--global]")
-	fmt.Fprintln(os.Stderr, "  (no flags)                          Show active mode and list captured agents")
-	fmt.Fprintln(os.Stderr, "  --global                            List captured agents across all projects")
-	fmt.Fprintln(os.Stderr, "  show <name> [--project <path>]      Print full snapshot for a captured agent")
-	fmt.Fprintln(os.Stderr, "  show --all [--project <path>]       Print all agent snapshots")
-	fmt.Fprintln(os.Stderr, "         [--since Nd|Nw]              Filter by age (e.g. --since 7d)")
-	fmt.Fprintln(os.Stderr, "  archive [--project <path>]          List archived agent sessions")
-	fmt.Fprintln(os.Stderr, "  rm <name> [--project <path>]        Remove a specific agent snapshot")
-	fmt.Fprintln(os.Stderr, "  rm --before Nd|Nw [--project <path>]  Remove snapshots older than N days/weeks")
-	fmt.Fprintln(os.Stderr, "  rm --session <id> [--project <path>]  Remove an archived session")
-	fmt.Fprintln(os.Stderr, "  rm --all [--project <path>]         Remove all agent snapshots")
-	fmt.Fprintln(os.Stderr, "  summarize [--project <path>]        Summarize current agents via claude -p")
-	fmt.Fprintln(os.Stderr, "            [--all] [--since Nd|Nw]   Include archived / filter by age")
-	fmt.Fprintln(os.Stderr, "  --on                                Enable agent capture")
-	fmt.Fprintln(os.Stderr, "  --off                               Disable agent capture")
-	fmt.Fprintln(os.Stderr, "  --local                             Write to local project config instead of global")
+	h := func(s string) string { return tui.BoldErr(s) }
+	w := os.Stderr
+	fmt.Fprintln(w, "Usage: ctx agents [subcommand] [flags]")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, h("DISPLAY"))
+	fmt.Fprintln(w, "  (no flags)                             show mode and captured agents")
+	fmt.Fprintln(w, "  --global                               all projects")
+	fmt.Fprintln(w, "  show <name> [--project <path>]         full snapshot for one agent")
+	fmt.Fprintln(w, "  show --all [--project <p>]             all agent snapshots")
+	fmt.Fprintln(w, "            [--since Nd|Nw]              filter by age (e.g. --since 7d)")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, h("MANAGE"))
+	fmt.Fprintln(w, "  archive [--project <path>]             list archived sessions")
+	fmt.Fprintln(w, "  summarize [--project <path>]           AI summary via claude -p")
+	fmt.Fprintln(w, "           [--all] [--since Nd|Nw]       include archived / filter by age")
+	fmt.Fprintln(w, "  rm <name> [--project <path>]           remove a specific agent snapshot")
+	fmt.Fprintln(w, "  rm --before Nd|Nw                      remove snapshots older than N days/weeks")
+	fmt.Fprintln(w, "  rm --session <id>                      remove an archived session")
+	fmt.Fprintln(w, "  rm --all                               remove all agent snapshots")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, h("WORKSPACE SCANNING"))
+	fmt.Fprintln(w, "  workspace list                         show workspaces, exclusions, markers")
+	fmt.Fprintln(w, "  workspace add <path>                   add a workspace directory")
+	fmt.Fprintln(w, "  workspace rm <path>                    remove a workspace directory")
+	fmt.Fprintln(w, "  workspace exclude <path>               always skip this path during scans")
+	fmt.Fprintln(w, "  workspace unexclude <path>             remove from exclusion list")
+	fmt.Fprintln(w, "  workspace marker add|rm <pattern>      custom root markers (e.g. *.csproj)")
+	fmt.Fprintln(w, "  workspace boundary add|rm <dirname>    custom boundary dirs (e.g. .terraform)")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, h("MODE"))
+	fmt.Fprintln(w, "  --on                                   enable agent capture")
+	fmt.Fprintln(w, "  --off                                  disable agent capture")
+	fmt.Fprintln(w, "  --local                                write to local project config")
 }
 
 func cmdAgentsArchive(projectDir string) error {
@@ -647,10 +667,10 @@ func showAgents(projectDir string) error {
 	fmt.Println()
 	if sources.Mode == config.SourceLocal {
 		globalCfg, _ := config.EffectiveConfig("")
-		fmt.Printf("mode:    %s  [local override]\n", effective.Agents.Mode)
-		fmt.Printf("source:  global=%s, local=%s\n", globalCfg.Agents.Mode, effective.Agents.Mode)
+		fmt.Printf("mode:    %s  %s\n", colorMode(effective.Agents.Mode), tui.Yellow("[local override]"))
+		fmt.Printf("source:  global=%s, local=%s\n", tui.Dim(globalCfg.Agents.Mode), tui.Dim(effective.Agents.Mode))
 	} else {
-		fmt.Printf("mode:    %s  [%s]\n", effective.Agents.Mode, sources.Mode)
+		fmt.Printf("mode:    %s  %s\n", colorMode(effective.Agents.Mode), tui.Dim("["+sources.Mode.String()+"]"))
 	}
 
 	if effective.Agents.Mode == "off" || effective.Agents.Mode == "" {
@@ -668,18 +688,18 @@ func showAgents(projectDir string) error {
 
 	fmt.Println()
 	if len(agentList) == 0 {
+		// Fall back to workspace scan if workspaces are configured
+		if len(effective.Agents.Workspaces) > 0 {
+			fmt.Fprintln(os.Stderr, tui.Yellow("note:")+" not in a recognized project — scanning workspaces")
+			return showWorkspaceAgents(&effective.Agents)
+		}
 		fmt.Println("no agents captured yet")
 		return nil
 	}
 
-	fmt.Println("captured agents (current project):")
+	fmt.Println(tui.Bold("captured agents") + " (current project):")
 	for _, a := range agentList {
-		age := "unknown"
-		if !a.StoppedAt.IsZero() {
-			d := time.Since(a.StoppedAt).Round(time.Minute)
-			age = fmt.Sprintf("%s ago", d)
-		}
-		fmt.Printf("  %-22s %-10s stopped %s\n", a.Name, a.Type, age)
+		fmt.Printf("  %-22s %s  stopped %s\n", a.Name, tui.Dim(fmt.Sprintf("%-10s", a.Type)), fmtAge(a.StoppedAt))
 	}
 	return nil
 }
@@ -697,23 +717,295 @@ func showAllAgents() error {
 	}
 
 	home, _ := os.UserHomeDir()
-	fmt.Println("captured agents (all projects):")
+	fmt.Println(tui.Bold("captured agents") + " (all projects):")
 	for _, p := range projects {
-		label := p.ProjectDir
-		if home != "" && strings.HasPrefix(label, home) {
-			label = "~" + label[len(home):]
-		}
-		fmt.Printf("\n  %s\n", label)
+		fmt.Printf("\n  %s\n", tui.Cyan(shortenHome(p.ProjectDir, home)))
 		for _, a := range p.Agents {
-			age := "unknown"
-			if !a.StoppedAt.IsZero() {
-				d := time.Since(a.StoppedAt).Round(time.Minute)
-				age = fmt.Sprintf("%s ago", d)
-			}
-			fmt.Printf("    %-22s %-10s stopped %s\n", a.Name, a.Type, age)
+			fmt.Printf("    %-22s %s  stopped %s\n", a.Name, tui.Dim(fmt.Sprintf("%-10s", a.Type)), fmtAge(a.StoppedAt))
 		}
 	}
 	return nil
+}
+
+func showWorkspaceAgents(cfg *config.AgentsConfig) error {
+	opts := snapshot.ScanOptions{
+		MaxDepth:          cfg.Scan.MaxDepth,
+		ExtraRootMarkers:  cfg.Scan.ExtraRootMarkers,
+		ExtraBoundaryDirs: cfg.Scan.ExtraBoundaryDirs,
+		Exclude:           cfg.Scan.Exclude,
+	}
+	projectDirs, err := snapshot.ScanWorkspaceProjects(cfg.Workspaces, opts)
+	if err != nil {
+		return err
+	}
+
+	home, _ := os.UserHomeDir()
+	found := false
+	for _, dir := range projectDirs {
+		hash := snapshot.ProjectHash(dir)
+		agentList, err := snapshot.ListAgents(hash)
+		if err != nil || len(agentList) == 0 {
+			continue
+		}
+		if !found {
+			fmt.Println(tui.Bold("captured agents") + " (workspace scan):")
+			found = true
+		}
+		fmt.Printf("\n  %s\n", tui.Cyan(shortenHome(dir, home)))
+		for _, a := range agentList {
+			fmt.Printf("    %-22s %s  stopped %s\n", a.Name, tui.Dim(fmt.Sprintf("%-10s", a.Type)), fmtAge(a.StoppedAt))
+		}
+	}
+	if !found {
+		fmt.Println("no agents captured yet")
+	}
+	return nil
+}
+
+// colorMode returns the mode string colored: green for "on", dim for anything else.
+func colorMode(mode string) string {
+	if mode == "on" {
+		return tui.Green(mode)
+	}
+	return tui.Dim(mode)
+}
+
+// fmtAge formats a stopped-at timestamp as a human-readable age string,
+// colored yellow if under 1 hour, dim otherwise.
+func fmtAge(t time.Time) string {
+	if t.IsZero() {
+		return tui.Dim("unknown")
+	}
+	d := time.Since(t).Round(time.Minute)
+	s := formatDuration(d) + " ago"
+	if d < time.Hour {
+		return tui.Yellow(s)
+	}
+	return tui.Dim(s)
+}
+
+// formatDuration formats a duration as a compact human string: "5m", "2h30m", "3h".
+func formatDuration(d time.Duration) string {
+	h := int(d.Hours())
+	m := int(d.Minutes()) % 60
+	switch {
+	case h > 0 && m > 0:
+		return fmt.Sprintf("%dh%dm", h, m)
+	case h > 0:
+		return fmt.Sprintf("%dh", h)
+	case m <= 1:
+		return "just now"
+	default:
+		return fmt.Sprintf("%dm", m)
+	}
+}
+
+func cmdAgentsWorkspace(args []string) error {
+	if len(args) == 0 || args[0] == "list" {
+		return cmdAgentsWorkspaceList()
+	}
+	if len(args) < 2 {
+		return fmt.Errorf("ctx: usage: ctx agents workspace add|rm|exclude|unexclude|marker|boundary <value>")
+	}
+	switch args[0] {
+	case "add":
+		return cmdAgentsWorkspaceAdd(args[1])
+	case "rm":
+		return cmdAgentsWorkspaceRm(args[1])
+	case "exclude":
+		return cmdAgentsWorkspaceExclude(args[1])
+	case "unexclude":
+		return cmdAgentsWorkspaceUnexclude(args[1])
+	case "marker":
+		return cmdAgentsWorkspaceMarker(args[1:])
+	case "boundary":
+		return cmdAgentsWorkspaceBoundary(args[1:])
+	default:
+		return fmt.Errorf("ctx: unknown workspace subcommand %q", args[0])
+	}
+}
+
+func cmdAgentsWorkspaceList() error {
+	cfg, err := config.LoadFull(config.GlobalConfigPath())
+	if err != nil {
+		return err
+	}
+	fmt.Println()
+	home, _ := os.UserHomeDir()
+
+	if len(cfg.Agents.Workspaces) == 0 {
+		fmt.Println("no workspaces configured")
+		fmt.Println("run: ctx agents workspace add <path>")
+	} else {
+		fmt.Println("workspaces:")
+		for _, ws := range cfg.Agents.Workspaces {
+			fmt.Printf("  %s\n", shortenHome(ws, home))
+		}
+	}
+
+	if cfg.Agents.Scan.MaxDepth > 0 {
+		fmt.Printf("\nmax depth: %d\n", cfg.Agents.Scan.MaxDepth)
+	}
+	if len(cfg.Agents.Scan.Exclude) > 0 {
+		fmt.Println("\nexcluded paths:")
+		for _, p := range cfg.Agents.Scan.Exclude {
+			fmt.Printf("  %s\n", shortenHome(p, home))
+		}
+	}
+	if len(cfg.Agents.Scan.ExtraRootMarkers) > 0 {
+		fmt.Printf("\nextra root markers: %s\n", strings.Join(cfg.Agents.Scan.ExtraRootMarkers, ", "))
+	}
+	if len(cfg.Agents.Scan.ExtraBoundaryDirs) > 0 {
+		fmt.Printf("extra boundary dirs: %s\n", strings.Join(cfg.Agents.Scan.ExtraBoundaryDirs, ", "))
+	}
+	return nil
+}
+
+func cmdAgentsWorkspaceAdd(path string) error {
+	abs, err := resolveAbsPath(path)
+	if err != nil {
+		return err
+	}
+	if _, err := os.Stat(abs); os.IsNotExist(err) {
+		return fmt.Errorf("ctx: directory not found: %s", abs)
+	}
+	home, _ := os.UserHomeDir()
+	stored := snapshot.ShortenToHome(abs, home)
+	return setConfigField(false, "", func(cfg *config.Config) {
+		for _, ws := range cfg.Agents.Workspaces {
+			if snapshot.AbsExpandHome(ws) == abs {
+				return // already present (compare by expansion, not stored form)
+			}
+		}
+		cfg.Agents.Workspaces = append(cfg.Agents.Workspaces, stored)
+	}, fmt.Sprintf("workspace added: %s", stored))
+}
+
+func cmdAgentsWorkspaceRm(path string) error {
+	abs, err := resolveAbsPath(path)
+	if err != nil {
+		return err
+	}
+	return setConfigField(false, "", func(cfg *config.Config) {
+		filtered := cfg.Agents.Workspaces[:0]
+		for _, ws := range cfg.Agents.Workspaces {
+			if snapshot.AbsExpandHome(ws) != abs {
+				filtered = append(filtered, ws)
+			}
+		}
+		cfg.Agents.Workspaces = filtered
+	}, fmt.Sprintf("workspace removed: %s", abs))
+}
+
+func cmdAgentsWorkspaceExclude(path string) error {
+	abs, err := resolveAbsPath(path)
+	if err != nil {
+		return err
+	}
+	if _, err := os.Stat(abs); os.IsNotExist(err) {
+		fmt.Fprintf(os.Stderr, "note: path does not exist (will be excluded if it is created later): %s\n", abs)
+	}
+	home, _ := os.UserHomeDir()
+	stored := snapshot.ShortenToHome(abs, home)
+	return setConfigField(false, "", func(cfg *config.Config) {
+		for _, p := range cfg.Agents.Scan.Exclude {
+			if snapshot.AbsExpandHome(p) == abs {
+				return
+			}
+		}
+		cfg.Agents.Scan.Exclude = append(cfg.Agents.Scan.Exclude, stored)
+	}, fmt.Sprintf("excluded: %s", stored))
+}
+
+func cmdAgentsWorkspaceUnexclude(path string) error {
+	abs, err := resolveAbsPath(path)
+	if err != nil {
+		return err
+	}
+	return setConfigField(false, "", func(cfg *config.Config) {
+		filtered := cfg.Agents.Scan.Exclude[:0]
+		for _, p := range cfg.Agents.Scan.Exclude {
+			if snapshot.AbsExpandHome(p) != abs {
+				filtered = append(filtered, p)
+			}
+		}
+		cfg.Agents.Scan.Exclude = filtered
+	}, fmt.Sprintf("unexcluded: %s", abs))
+}
+
+func cmdAgentsWorkspaceMarker(args []string) error {
+	if len(args) < 2 {
+		return fmt.Errorf("ctx: usage: ctx agents workspace marker add|rm <pattern>")
+	}
+	pattern := args[1]
+	switch args[0] {
+	case "add":
+		return setConfigField(false, "", func(cfg *config.Config) {
+			for _, m := range cfg.Agents.Scan.ExtraRootMarkers {
+				if m == pattern {
+					return
+				}
+			}
+			cfg.Agents.Scan.ExtraRootMarkers = append(cfg.Agents.Scan.ExtraRootMarkers, pattern)
+		}, fmt.Sprintf("root marker added: %s", pattern))
+	case "rm":
+		return setConfigField(false, "", func(cfg *config.Config) {
+			filtered := cfg.Agents.Scan.ExtraRootMarkers[:0]
+			for _, m := range cfg.Agents.Scan.ExtraRootMarkers {
+				if m != pattern {
+					filtered = append(filtered, m)
+				}
+			}
+			cfg.Agents.Scan.ExtraRootMarkers = filtered
+		}, fmt.Sprintf("root marker removed: %s", pattern))
+	default:
+		return fmt.Errorf("ctx: usage: ctx agents workspace marker add|rm <pattern>")
+	}
+}
+
+func cmdAgentsWorkspaceBoundary(args []string) error {
+	if len(args) < 2 {
+		return fmt.Errorf("ctx: usage: ctx agents workspace boundary add|rm <dirname>")
+	}
+	name := args[1]
+	switch args[0] {
+	case "add":
+		return setConfigField(false, "", func(cfg *config.Config) {
+			for _, d := range cfg.Agents.Scan.ExtraBoundaryDirs {
+				if d == name {
+					return
+				}
+			}
+			cfg.Agents.Scan.ExtraBoundaryDirs = append(cfg.Agents.Scan.ExtraBoundaryDirs, name)
+		}, fmt.Sprintf("boundary dir added: %s", name))
+	case "rm":
+		return setConfigField(false, "", func(cfg *config.Config) {
+			filtered := cfg.Agents.Scan.ExtraBoundaryDirs[:0]
+			for _, d := range cfg.Agents.Scan.ExtraBoundaryDirs {
+				if d != name {
+					filtered = append(filtered, d)
+				}
+			}
+			cfg.Agents.Scan.ExtraBoundaryDirs = filtered
+		}, fmt.Sprintf("boundary dir removed: %s", name))
+	default:
+		return fmt.Errorf("ctx: usage: ctx agents workspace boundary add|rm <dirname>")
+	}
+}
+
+// resolveAbsPath expands ~ and returns the absolute path.
+func resolveAbsPath(path string) (string, error) {
+	abs := snapshot.AbsExpandHome(path)
+	if abs == "" {
+		return "", fmt.Errorf("ctx: could not resolve path: %s", path)
+	}
+	return abs, nil
+}
+
+// shortenHome converts an absolute path to ~/... when it falls under home.
+// Uses forward slashes after ~ so the result is portable across OSes.
+func shortenHome(path, home string) string {
+	return snapshot.ShortenToHome(path, home)
 }
 
 func cmdAgentsShow(projectDir, agentID string) error {
@@ -870,7 +1162,9 @@ func cmdAgentsSummarize(cwd string, args []string) error {
 	}
 
 	fmt.Fprintf(os.Stderr, "ctx: summarizing %d agent(s) via claude -p...\n", len(snapshots))
-	summary, err := agents.GenerateCombinedSummary(snapshots, dir)
+	cfg, _ := config.EffectiveConfig(dir)
+	timeout := config.ClaudeTimeout(cfg.Core.ClaudeTimeoutSecs)
+	summary, err := agents.GenerateCombinedSummary(snapshots, dir, timeout)
 	if err != nil {
 		return err
 	}
@@ -957,43 +1251,45 @@ func cmdReset() error {
 }
 
 func printUsage() {
-	fmt.Fprintln(os.Stderr, `ctx — preserve Claude Code context across compactions
-
-Usage:
-  ctx init              Install hooks in Claude Code
-  ctx init --remove     Remove hooks
-  ctx init --status     Check hook installation status
-  ctx init --local      Create local project config (.ctx/config.yml)
-  ctx show              Print current snapshot
-  ctx show --project P  Print snapshot for project at path P
-  ctx clear             Delete current snapshot
-  ctx clear --agents-only  Clear only agent snapshots
-  ctx list              List all projects with snapshots
-  ctx config                     Show effective configuration with sources
-  ctx config --global            Show only global config
-  ctx config --local             Show only local config
-  ctx config --debug true|false  Enable or disable verbose hook logging
-  ctx agents                              Show agents mode and captured agents
-  ctx agents show <name>                  Print snapshot for a captured agent
-  ctx agents show <name> --project <p>    Same, for a different project
-  ctx agents show --all [--project <p>]   Print all agent snapshots
-             [--since Nd|Nw]              Filter by age
-  ctx agents archive [--project <p>]      List archived agent sessions
-  ctx agents rm <name>                    Remove a specific agent snapshot
-  ctx agents rm --before Nd               Remove snapshots older than N days/weeks
-  ctx agents rm --session <id>            Remove an archived session
-  ctx agents rm --all                     Remove all agent snapshots
-  ctx agents summarize [--all] [--since Nd]  AI summary of agent work
-  ctx agents --on                         Enable agent capture
-  ctx agents --off                        Disable agent capture
-  ctx reset             Clear snapshots (current directory or all projects)
-  ctx doctor            Check installation health
-  ctx logs              Show last 20 hook log entries
-  ctx logs -n <count>   Show last N entries
-  ctx logs --all        Show all entries
-  ctx changelog              Show changes in the current version
-  ctx changelog --full       Show full changelog history
-  ctx uninstall         Remove ctx completely (hooks, data, binary)
-  ctx update            Update to the latest version
-  ctx version           Show version`)
+	h := func(s string) string { return tui.BoldErr(s) }
+	w := os.Stderr
+	fmt.Fprintln(w, tui.Bold("ctx")+" — preserve Claude Code context across compactions")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, h("SETUP"))
+	fmt.Fprintln(w, "  ctx init [--remove|--status]          manage hook registration")
+	fmt.Fprintln(w, "  ctx init --local [--agents on|off]    create local project config")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, h("SESSION"))
+	fmt.Fprintln(w, "  ctx show [--project <path>]           print current snapshot")
+	fmt.Fprintln(w, "  ctx clear [--agents-only]             delete current snapshot")
+	fmt.Fprintln(w, "  ctx list                              list all projects with snapshots")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, h("AGENTS"))
+	fmt.Fprintln(w, "  ctx agents                            show mode and captured agents")
+	fmt.Fprintln(w, "  ctx agents --on | --off               enable or disable capture")
+	fmt.Fprintln(w, "  ctx agents --local --on               set mode in local project config")
+	fmt.Fprintln(w, "  ctx agents --global                   show agents across all projects")
+	fmt.Fprintln(w, "  ctx agents show <name>                print full agent snapshot")
+	fmt.Fprintln(w, "  ctx agents show --all [--since Nd]    print all snapshots")
+	fmt.Fprintln(w, "  ctx agents archive                    list archived sessions")
+	fmt.Fprintln(w, "  ctx agents rm <name|--all|--before>   remove agent snapshots")
+	fmt.Fprintln(w, "  ctx agents summarize [--all]          AI summary via claude -p")
+	fmt.Fprintln(w, "  ctx agents workspace add|rm <path>    manage workspace directories")
+	fmt.Fprintln(w, "  ctx agents workspace list             show workspaces and scan config")
+	fmt.Fprintln(w, "  ctx agents --help                     full agents command reference")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, h("CONFIGURATION"))
+	fmt.Fprintln(w, "  ctx config [--global|--local]         show effective configuration")
+	fmt.Fprintln(w, "  ctx config --debug true|false         toggle verbose hook logging")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, h("DIAGNOSTICS"))
+	fmt.Fprintln(w, "  ctx doctor                            check installation health")
+	fmt.Fprintln(w, "  ctx logs [-n N | --all]               show hook log entries")
+	fmt.Fprintln(w)
+	fmt.Fprintln(w, h("MAINTENANCE"))
+	fmt.Fprintln(w, "  ctx update                            update to the latest version")
+	fmt.Fprintln(w, "  ctx reset                             clear snapshots")
+	fmt.Fprintln(w, "  ctx uninstall                         remove ctx completely")
+	fmt.Fprintln(w, "  ctx version                           show version")
+	fmt.Fprintln(w, "  ctx changelog [--full]                show release notes")
 }

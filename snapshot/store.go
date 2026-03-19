@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/AgusRdz/ctx/config"
+	"github.com/AgusRdz/ctx/logging"
 )
 
 // AgentInfo holds lightweight metadata about a captured agent snapshot.
@@ -51,14 +52,16 @@ func Read(projectDir string) (string, error) {
 func Write(projectDir string, content string) error {
 	p := snapshotPath(projectDir)
 	dir := filepath.Dir(p)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("ctx: %w", err)
 	}
-	if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(p, []byte(content), 0o600); err != nil {
 		return fmt.Errorf("ctx: %w", err)
 	}
-	// Store project path so List() can reverse the hash
-	_ = os.WriteFile(filepath.Join(dir, "path.txt"), []byte(projectDir), 0o644)
+	// Store project path so List() can reverse the hash.
+	if err := os.WriteFile(filepath.Join(dir, "path.txt"), []byte(projectDir), 0o600); err != nil {
+		logging.Log("snapshot | WARNING: failed to write path.txt for %s: %v", projectDir, err)
+	}
 	return nil
 }
 

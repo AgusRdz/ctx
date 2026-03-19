@@ -89,9 +89,24 @@ func EffectiveConfigWithSources(projectRoot string) (*Config, *ConfigSources, er
 		cfg.Core.Debug = *globalPartial.Core.Debug
 		sources.Debug = SourceGlobal
 	}
+	if globalPartial.Core.ClaudeTimeoutSecs != nil {
+		cfg.Core.ClaudeTimeoutSecs = *globalPartial.Core.ClaudeTimeoutSecs
+	}
 	if globalPartial.Agents.Mode != nil {
 		cfg.Agents.Mode = *globalPartial.Agents.Mode
 		sources.Mode = SourceGlobal
+	}
+	if globalPartial.Agents.Scan.MaxDepth != nil {
+		cfg.Agents.Scan.MaxDepth = *globalPartial.Agents.Scan.MaxDepth
+	}
+	if globalPartial.Agents.Scan.ExtraRootMarkers != nil {
+		cfg.Agents.Scan.ExtraRootMarkers = *globalPartial.Agents.Scan.ExtraRootMarkers
+	}
+	if globalPartial.Agents.Scan.ExtraBoundaryDirs != nil {
+		cfg.Agents.Scan.ExtraBoundaryDirs = *globalPartial.Agents.Scan.ExtraBoundaryDirs
+	}
+	if globalPartial.Agents.Scan.Exclude != nil {
+		cfg.Agents.Scan.Exclude = *globalPartial.Agents.Scan.Exclude
 	}
 
 	// Apply local project config if it exists
@@ -104,9 +119,24 @@ func EffectiveConfigWithSources(projectRoot string) (*Config, *ConfigSources, er
 			cfg.Core.Debug = *localPartial.Core.Debug
 			sources.Debug = SourceLocal
 		}
+		if localPartial.Core.ClaudeTimeoutSecs != nil {
+			cfg.Core.ClaudeTimeoutSecs = *localPartial.Core.ClaudeTimeoutSecs
+		}
 		if localPartial.Agents.Mode != nil {
 			cfg.Agents.Mode = *localPartial.Agents.Mode
 			sources.Mode = SourceLocal
+		}
+		if localPartial.Agents.Scan.MaxDepth != nil {
+			cfg.Agents.Scan.MaxDepth = *localPartial.Agents.Scan.MaxDepth
+		}
+		if localPartial.Agents.Scan.ExtraRootMarkers != nil {
+			cfg.Agents.Scan.ExtraRootMarkers = *localPartial.Agents.Scan.ExtraRootMarkers
+		}
+		if localPartial.Agents.Scan.ExtraBoundaryDirs != nil {
+			cfg.Agents.Scan.ExtraBoundaryDirs = *localPartial.Agents.Scan.ExtraBoundaryDirs
+		}
+		if localPartial.Agents.Scan.Exclude != nil {
+			cfg.Agents.Scan.Exclude = *localPartial.Agents.Scan.Exclude
 		}
 	}
 

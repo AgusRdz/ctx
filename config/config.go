@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -13,7 +14,12 @@ import (
 // Windows: %LOCALAPPDATA%\ctx  Linux/macOS: ~/.local/share/ctx
 func DataDir() string {
 	if runtime.GOOS == "windows" {
-		return filepath.Join(os.Getenv("LOCALAPPDATA"), "ctx")
+		localAppData := os.Getenv("LOCALAPPDATA")
+		if localAppData == "" {
+			home, _ := os.UserHomeDir()
+			localAppData = filepath.Join(home, "AppData", "Local")
+		}
+		return filepath.Join(localAppData, "ctx")
 	}
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".local", "share", "ctx")
@@ -32,12 +38,35 @@ type Config struct {
 
 // CoreConfig holds core settings.
 type CoreConfig struct {
-	Debug bool `yaml:"debug"`
+	Debug             bool `yaml:"debug"`
+	ClaudeTimeoutSecs int  `yaml:"claude_timeout"` // seconds; 0 = use default (30)
 }
 
 // AgentsConfig holds subagent capture settings.
 type AgentsConfig struct {
-	Mode string `yaml:"mode"` // off | on
+	Mode       string     `yaml:"mode"`       // off | on
+	Workspaces []string   `yaml:"workspaces"` // directories to scan for projects
+	Scan       ScanConfig `yaml:"scan"`
+}
+
+// ScanConfig controls how workspace directories are scanned for project roots.
+// All lists are additive — they extend the built-in defaults, not replace them.
+type ScanConfig struct {
+	// MaxDepth is the maximum directory depth to scan below each workspace root.
+	// 0 means use the built-in default (3).
+	MaxDepth int `yaml:"max_depth"`
+
+	// ExtraRootMarkers are additional filenames or glob patterns (e.g. "*.csproj")
+	// that identify a directory as a project root.
+	ExtraRootMarkers []string `yaml:"extra_root_markers"`
+
+	// ExtraBoundaryDirs are additional directory names to never descend into
+	// (e.g. "build", ".terraform").
+	ExtraBoundaryDirs []string `yaml:"extra_boundary_dirs"`
+
+	// Exclude is a list of paths (~ supported) to always skip during workspace
+	// scans, regardless of what markers they contain.
+	Exclude []string `yaml:"exclude"`
 }
 
 // DefaultConfig returns a Config with all defaults populated.
@@ -56,10 +85,18 @@ func DefaultConfig() *Config {
 // Pointer types allow distinguishing "explicitly set to false/0" from "not present".
 type partialConfig struct {
 	Core struct {
-		Debug *bool `yaml:"debug"`
+		Debug             *bool `yaml:"debug"`
+		ClaudeTimeoutSecs *int  `yaml:"claude_timeout"`
 	} `yaml:"core"`
 	Agents struct {
-		Mode *string `yaml:"mode"`
+		Mode       *string   `yaml:"mode"`
+		Workspaces *[]string `yaml:"workspaces"`
+		Scan       struct {
+			MaxDepth          *int      `yaml:"max_depth"`
+			ExtraRootMarkers  *[]string `yaml:"extra_root_markers"`
+			ExtraBoundaryDirs *[]string `yaml:"extra_boundary_dirs"`
+			Exclude           *[]string `yaml:"exclude"`
+		} `yaml:"scan"`
 	} `yaml:"agents"`
 }
 
@@ -83,11 +120,30 @@ func loadPartial(path string) (*partialConfig, error) {
 // applyPartial merges non-nil partial fields into a config copy and returns it.
 func applyPartial(base *Config, pc *partialConfig) *Config {
 	result := *base
+	result.Agents.Scan = base.Agents.Scan // copy scan so we don't mutate base
 	if pc.Core.Debug != nil {
 		result.Core.Debug = *pc.Core.Debug
 	}
+	if pc.Core.ClaudeTimeoutSecs != nil {
+		result.Core.ClaudeTimeoutSecs = *pc.Core.ClaudeTimeoutSecs
+	}
 	if pc.Agents.Mode != nil {
 		result.Agents.Mode = *pc.Agents.Mode
+	}
+	if pc.Agents.Workspaces != nil {
+		result.Agents.Workspaces = *pc.Agents.Workspaces
+	}
+	if pc.Agents.Scan.MaxDepth != nil {
+		result.Agents.Scan.MaxDepth = *pc.Agents.Scan.MaxDepth
+	}
+	if pc.Agents.Scan.ExtraRootMarkers != nil {
+		result.Agents.Scan.ExtraRootMarkers = *pc.Agents.Scan.ExtraRootMarkers
+	}
+	if pc.Agents.Scan.ExtraBoundaryDirs != nil {
+		result.Agents.Scan.ExtraBoundaryDirs = *pc.Agents.Scan.ExtraBoundaryDirs
+	}
+	if pc.Agents.Scan.Exclude != nil {
+		result.Agents.Scan.Exclude = *pc.Agents.Scan.Exclude
 	}
 	return &result
 }
@@ -111,8 +167,16 @@ func Save(path string, cfg *Config) error {
 	if err != nil {
 		return fmt.Errorf("ctx: %w", err)
 	}
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	if err := os.WriteFile(path, data, 0o600); err != nil {
 		return fmt.Errorf("ctx: %w", err)
 	}
 	return nil
+}
+
+// ClaudeTimeout returns the configured claude -p timeout, or 30s if not set.
+func ClaudeTimeout(secs int) time.Duration {
+	if secs > 0 {
+		return time.Duration(secs) * time.Second
+	}
+	return 30 * time.Second
 }

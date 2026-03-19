@@ -3,6 +3,7 @@ package agents
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -44,7 +45,9 @@ func AgentName(projectDir string, t time.Time) string {
 	return branch + "-" + ts
 }
 
-// gitBranch returns the current git branch name, sanitized for use as a filename.
+// gitBranch returns the current git branch name, sanitized for use as a filename
+// on all platforms. Only [a-zA-Z0-9._-] are kept; everything else becomes "-".
+// The result is truncated to 64 characters to avoid path-length issues.
 func gitBranch(projectDir string) string {
 	cmd := exec.Command("git", "-C", projectDir, "rev-parse", "--abbrev-ref", "HEAD")
 	out, err := cmd.Output()
@@ -55,10 +58,32 @@ func gitBranch(projectDir string) string {
 	if branch == "" || branch == "HEAD" {
 		return "no-branch"
 	}
-	branch = strings.ReplaceAll(branch, "/", "-")
-	branch = strings.ReplaceAll(branch, "\\", "-")
-	branch = strings.ReplaceAll(branch, " ", "-")
-	return branch
+	return sanitizeBranchName(branch)
+}
+
+// sanitizeBranchName replaces any character outside [a-zA-Z0-9._-] with "-"
+// and trims leading/trailing separators. Safe for filenames on all OSes.
+func sanitizeBranchName(branch string) string {
+	var b strings.Builder
+	for _, r := range branch {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+			b.WriteRune(r)
+		case r == '-', r == '_', r == '.':
+			b.WriteRune(r)
+		default:
+			b.WriteRune('-')
+		}
+	}
+	result := strings.Trim(b.String(), "-.")
+	if result == "" {
+		return "no-branch"
+	}
+	const maxLen = 64
+	if len(result) > maxLen {
+		result = result[:maxLen]
+	}
+	return result
 }
 
 // FindAgentTranscript searches ~/.claude/projects/ for a .jsonl file matching sessionID.
@@ -126,8 +151,11 @@ func ArchiveCurrentAgents(projectHash string) error {
 	return nil
 }
 
+// maxClaudeOutputBytes caps output from claude -p to prevent memory exhaustion.
+const maxClaudeOutputBytes = 512 * 1024 // 512 KB
+
 // GenerateAgentSummary calls claude -p to produce a short summary of what a sub-agent did.
-func GenerateAgentSummary(transcriptLines, projectDir string) (string, error) {
+func GenerateAgentSummary(transcriptLines, projectDir string, timeout time.Duration) (string, error) {
 	prompt := fmt.Sprintf(`Summarize what this sub-agent did in 2-4 bullet points. Be concise and specific.
 Focus on: what task it was given, what actions it took, what it produced or changed.
 No preamble. Respond in plain text with bullet points starting with "- ".
@@ -135,30 +163,56 @@ No preamble. Respond in plain text with bullet points starting with "- ".
 AGENT TRANSCRIPT (last entries):
 %s`, transcriptLines)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	cmdCtx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "claude", "-p", prompt)
+	cmd := exec.CommandContext(cmdCtx, "claude", "-p", prompt)
 	if projectDir != "" {
 		cmd.Dir = projectDir
 	}
+	// CLAUDE_API_KEY is intentionally kept — claude -p needs it.
 	cmd.Env = filterEnv(os.Environ(), "CLAUDECODE")
-	out, err := cmd.Output()
+	out, err := runLimited(cmd, cmdCtx, maxClaudeOutputBytes)
 	if err != nil {
 		return "", fmt.Errorf("ctx: claude -p failed: %w", err)
 	}
 	return strings.TrimSpace(string(out)), nil
 }
 
-// WriteAgentSnapshot writes an agent snapshot to disk.
+// runLimited starts cmd, reads at most maxBytes of stdout, drains the rest,
+// and waits for the process to exit.
+func runLimited(cmd *exec.Cmd, cmdCtx context.Context, maxBytes int64) ([]byte, error) {
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+	out, readErr := io.ReadAll(io.LimitReader(stdout, maxBytes))
+	_, _ = io.Copy(io.Discard, stdout)
+	waitErr := cmd.Wait()
+	if readErr != nil {
+		return nil, readErr
+	}
+	return out, waitErr
+}
+
+// WriteAgentSnapshot writes an agent snapshot to disk atomically.
+// Writing to a temp file then renaming prevents partial reads from concurrent agents.
 func WriteAgentSnapshot(projectHash string, s AgentSnapshot) error {
 	dir := AgentsDir(projectHash)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("ctx: %w", err)
 	}
 	content := formatAgentSnapshot(s)
-	path := AgentSnapshotPath(projectHash, s.Name)
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+	finalPath := AgentSnapshotPath(projectHash, s.Name)
+	tmpPath := finalPath + ".tmp"
+	if err := os.WriteFile(tmpPath, []byte(content), 0o600); err != nil {
+		return fmt.Errorf("ctx: %w", err)
+	}
+	if err := os.Rename(tmpPath, finalPath); err != nil {
+		os.Remove(tmpPath)
 		return fmt.Errorf("ctx: %w", err)
 	}
 	return nil
@@ -341,7 +395,7 @@ func ReadAllAgentSnapshots(projectHash string, since time.Time) ([]AgentSnapshot
 }
 
 // GenerateCombinedSummary calls claude -p to summarize work across multiple agent snapshots.
-func GenerateCombinedSummary(snapshots []AgentSnapshot, projectDir string) (string, error) {
+func GenerateCombinedSummary(snapshots []AgentSnapshot, projectDir string, timeout time.Duration) (string, error) {
 	if len(snapshots) == 0 {
 		return "", fmt.Errorf("ctx: no snapshots to summarize")
 	}
@@ -360,15 +414,16 @@ Be concise. Respond in plain markdown with bullet points.
 AGENT SUMMARIES:
 %s`, b.String())
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	cmdCtx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "claude", "-p", prompt)
+	cmd := exec.CommandContext(cmdCtx, "claude", "-p", prompt)
 	if projectDir != "" {
 		cmd.Dir = projectDir
 	}
+	// CLAUDE_API_KEY is intentionally kept — claude -p needs it.
 	cmd.Env = filterEnv(os.Environ(), "CLAUDECODE")
-	out, err := cmd.Output()
+	out, err := runLimited(cmd, cmdCtx, maxClaudeOutputBytes)
 	if err != nil {
 		return "", fmt.Errorf("ctx: claude -p failed: %w", err)
 	}

@@ -15,7 +15,7 @@ func Log(format string, args ...interface{}) {
 	if err := os.MkdirAll(filepath.Dir(logFile), 0o755); err != nil {
 		return
 	}
-	f, err := os.OpenFile(logFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	f, err := os.OpenFile(logFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
 	if err != nil {
 		return
 	}

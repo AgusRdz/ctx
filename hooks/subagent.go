@@ -63,8 +63,14 @@ func RunSubagentStop() error {
 		agentType = "custom"
 	}
 
-	// Find and summarize the agent's transcript
-	transcriptPath := input.TranscriptPath
+	timeout := config.ClaudeTimeout(cfg.Core.ClaudeTimeoutSecs)
+
+	// Find and summarize the agent's transcript.
+	// Validate TranscriptPath is under ~/.claude/ before reading.
+	transcriptPath := ""
+	if input.TranscriptPath != "" && isValidTranscriptPath(input.TranscriptPath) {
+		transcriptPath = input.TranscriptPath
+	}
 	if transcriptPath == "" {
 		transcriptPath = agents.FindAgentTranscript(input.SessionID)
 	}
@@ -73,7 +79,7 @@ func RunSubagentStop() error {
 	if transcriptPath != "" {
 		lines, extractErr := snapshot.ExtractTranscriptLines(transcriptPath, 30)
 		if extractErr == nil && lines != "" {
-			generated, genErr := agents.GenerateAgentSummary(lines, projectDir)
+			generated, genErr := agents.GenerateAgentSummary(lines, projectDir, timeout)
 			if genErr != nil {
 				logging.Log("subagent | WARNING: summary generation failed: %v", genErr)
 			} else {
@@ -100,3 +106,4 @@ func RunSubagentStop() error {
 	logging.Log("subagent | agent=%s | type=%s | project=%s | status=ok", name, agentType, projectDir)
 	return nil
 }
+

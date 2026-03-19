@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/AgusRdz/ctx/agents"
+	"github.com/AgusRdz/ctx/config"
 	"github.com/AgusRdz/ctx/logging"
 	"github.com/AgusRdz/ctx/snapshot"
 )
@@ -50,16 +52,22 @@ func RunPreCompact() error {
 	logging.Debug("precompact | diff_stat_bytes=%d | project_md_bytes=%d | recent_log_lines=%d",
 		len(ctx.DiffStat), len(ctx.ProjectMD), len(strings.Split(strings.TrimSpace(ctx.RecentLog), "\n")))
 
-	// Extract transcript lines
+	// Extract transcript lines — validate path is under ~/.claude/ before reading.
 	var transcriptLines string
-	if input.TranscriptPath != "" {
-		transcriptLines, _ = snapshot.ExtractTranscriptLines(input.TranscriptPath, 20)
+	if input.TranscriptPath != "" && isValidTranscriptPath(input.TranscriptPath) {
+		var extractErr error
+		transcriptLines, extractErr = snapshot.ExtractTranscriptLines(input.TranscriptPath, 20)
+		if extractErr != nil {
+			logging.Log("precompact | WARNING: transcript extraction failed: %v", extractErr)
+		}
 	}
 	logging.Debug("precompact | transcript_path=%s | extracted_bytes=%d",
 		input.TranscriptPath, len(transcriptLines))
 
 	// Generate snapshot via claude -p, with fallback
-	content, err := snapshot.Generate(ctx, transcriptLines)
+	cfg, _ := config.EffectiveConfig(projectDir)
+	timeout := config.ClaudeTimeout(cfg.Core.ClaudeTimeoutSecs)
+	content, err := snapshot.Generate(ctx, transcriptLines, timeout)
 	if err != nil {
 		logging.Log("precompact | WARNING: %v, using fallback", err)
 		content = snapshot.GenerateFallback(ctx)
@@ -100,4 +108,20 @@ func parseTriggerFromArgs() string {
 		}
 	}
 	return ""
+}
+
+// isValidTranscriptPath returns true if path is a .jsonl file under ~/.claude/.
+// Prevents hook input from being used to read arbitrary files.
+func isValidTranscriptPath(path string) bool {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return false
+	}
+	claudeDir := filepath.Join(home, ".claude")
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return false
+	}
+	return strings.HasPrefix(abs, claudeDir+string(filepath.Separator)) &&
+		strings.HasSuffix(abs, ".jsonl")
 }

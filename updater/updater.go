@@ -131,9 +131,7 @@ func download(url, destPath string) error {
 		return fmt.Errorf("ctx: failed to replace binary: %w", err)
 	}
 
-	if runtime.GOOS != "windows" {
-		os.Remove(oldPath)
-	}
+	os.Remove(oldPath) // best-effort on all platforms; ignored if still in use on Windows
 
 	// Verify it's not a 404 HTML page
 	info, err := os.Stat(destPath)
