@@ -2,16 +2,14 @@
 //
 // Color is disabled automatically when:
 //   - The NO_COLOR environment variable is set (https://no-color.org)
-//   - The target stream is not a character device (piped, redirected, CI)
-//
-// On Windows, Git Bash / MSYS2 uses PTY emulation so the fd reports as a
-// pipe rather than a char device. TERM, WT_SESSION, and COLORTERM are used
-// as a fallback to enable color in those environments.
+//   - The target stream is not an interactive terminal (piped, redirected, CI)
 package tui
 
 import (
 	"os"
 	"sync"
+
+	"github.com/mattn/go-isatty"
 )
 
 var (
@@ -21,28 +19,15 @@ var (
 	stderrEnabled bool
 )
 
-func isCharDevice(f *os.File) bool {
-	fi, err := f.Stat()
-	if err != nil {
-		return false
-	}
-	if (fi.Mode() & os.ModeCharDevice) != 0 {
-		return true
-	}
-	// Git Bash / MSYS2 on Windows uses PTY emulation — the fd reports as a
-	// pipe, not a char device. Fall back to environment variables that
-	// indicate an interactive, color-capable terminal.
-	return os.Getenv("TERM") != "" ||
-		os.Getenv("WT_SESSION") != "" ||
-		os.Getenv("COLORTERM") != ""
-}
-
 // enabledFor returns true if color should be used when writing to f.
+// Uses go-isatty which correctly handles MSYS2/Git Bash (IsCygwinTerminal)
+// in addition to native terminals.
 func enabledFor(f *os.File) bool {
 	if os.Getenv("NO_COLOR") != "" {
 		return false
 	}
-	return isCharDevice(f)
+	fd := f.Fd()
+	return isatty.IsTerminal(fd) || isatty.IsCygwinTerminal(fd)
 }
 
 // stdoutEnabled_ reports whether color is enabled for stdout (memoized).
