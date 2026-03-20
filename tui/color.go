@@ -6,6 +6,7 @@
 package tui
 
 import (
+	"fmt"
 	"os"
 	"sync"
 
@@ -76,3 +77,21 @@ func Red(s string) string { return ansi("31", s) }
 
 // BoldErr returns s in bold, for writing to stderr.
 func BoldErr(s string) string { return ansiErr("1", s) }
+
+// ColorDebug prints terminal detection diagnostics to stdout.
+func ColorDebug() {
+	check := func(name string, f *os.File) {
+		fd := f.Fd()
+		fmt.Printf("%s (fd=%d):\n", name, fd)
+		fmt.Printf("  IsTerminal:       %v\n", isatty.IsTerminal(fd))
+		fmt.Printf("  IsCygwinTerminal: %v\n", isatty.IsCygwinTerminal(fd))
+		fmt.Printf("  color enabled:    %v\n", enabledFor(f))
+	}
+	fmt.Printf("NO_COLOR=%q\n", os.Getenv("NO_COLOR"))
+	fmt.Printf("TERM=%q\n", os.Getenv("TERM"))
+	fmt.Printf("WT_SESSION=%q\n", os.Getenv("WT_SESSION"))
+	fmt.Printf("COLORTERM=%q\n\n", os.Getenv("COLORTERM"))
+	check("stdout", os.Stdout)
+	check("stderr", os.Stderr)
+	fmt.Printf("\nsample: %s %s %s %s\n", Bold("bold"), Green("green"), Yellow("yellow"), Cyan("cyan"))
+}

@@ -79,6 +79,9 @@ func main() {
 		updater.Run(version)
 	case "version", "--version", "-v":
 		fmt.Printf("ctx %s\n", version)
+	case "--color-debug":
+		tui.ColorDebug()
+		return
 	case "help", "--help", "-h":
 		printUsage()
 	default:
