@@ -2,11 +2,20 @@
 
 All notable changes to ctx are documented here.
 
+## [1.1.4] - 2026-03-20
+
+### Features
+- Colorize help output — section headers, flags, dim descriptions
+([54c2f7c](https://github.com/AgusRdz/ctx/commit/54c2f7cfaf839cbec6097c7ac3d40c6286b785d9))
 ## [1.1.3] - 2026-03-20
 
 ### Bug Fixes
 - Enable ANSI VT processing on Windows for color output
 ([c964218](https://github.com/AgusRdz/ctx/commit/c9642180898fc017b582ed4477ac3460591535c6))
+
+### Miscellaneous
+- Release v1.1.3
+([065f391](https://github.com/AgusRdz/ctx/commit/065f39189afdf0acc06cdd86a85706639b69a1e9))
 ## [1.1.2] - 2026-03-19
 
 ### Bug Fixes
