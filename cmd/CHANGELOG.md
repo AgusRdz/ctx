@@ -2,11 +2,20 @@
 
 All notable changes to ctx are documented here.
 
+## [1.1.3] - 2026-03-20
+
+### Bug Fixes
+- Enable ANSI VT processing on Windows for color output
+([c964218](https://github.com/AgusRdz/ctx/commit/c9642180898fc017b582ed4477ac3460591535c6))
 ## [1.1.2] - 2026-03-19
 
 ### Bug Fixes
 - Use go-isatty for terminal detection (fixes color in Git Bash / MSYS2)
 ([3df27ba](https://github.com/AgusRdz/ctx/commit/3df27babde6d1fe7e49159e91985649e1a1c0537))
+
+### Miscellaneous
+- Release v1.1.2
+([30b7159](https://github.com/AgusRdz/ctx/commit/30b715985f40409e455a0d48ea76eb419e7c3e25))
 ## [1.1.1] - 2026-03-19
 
 ### Bug Fixes
