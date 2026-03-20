@@ -597,39 +597,51 @@ func cmdAgents() error {
 }
 
 func printAgentsHelp() {
-	h := func(s string) string { return tui.BoldErr(s) }
-	w := os.Stderr
-	fmt.Fprintln(w, "Usage: ctx agents [subcommand] [flags]")
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, h("DISPLAY"))
-	fmt.Fprintln(w, "  (no flags)                             show mode and captured agents")
-	fmt.Fprintln(w, "  --global                               all projects")
-	fmt.Fprintln(w, "  show <name> [--project <path>]         full snapshot for one agent")
-	fmt.Fprintln(w, "  show --all [--project <p>]             all agent snapshots")
-	fmt.Fprintln(w, "            [--since Nd|Nw]              filter by age (e.g. --since 7d)")
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, h("MANAGE"))
-	fmt.Fprintln(w, "  archive [--project <path>]             list archived sessions")
-	fmt.Fprintln(w, "  summarize [--project <path>]           AI summary via claude -p")
-	fmt.Fprintln(w, "           [--all] [--since Nd|Nw]       include archived / filter by age")
-	fmt.Fprintln(w, "  rm <name> [--project <path>]           remove a specific agent snapshot")
-	fmt.Fprintln(w, "  rm --before Nd|Nw                      remove snapshots older than N days/weeks")
-	fmt.Fprintln(w, "  rm --session <id>                      remove an archived session")
-	fmt.Fprintln(w, "  rm --all                               remove all agent snapshots")
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, h("WORKSPACE SCANNING"))
-	fmt.Fprintln(w, "  workspace list                         show workspaces, exclusions, markers")
-	fmt.Fprintln(w, "  workspace add <path>                   add a workspace directory")
-	fmt.Fprintln(w, "  workspace rm <path>                    remove a workspace directory")
-	fmt.Fprintln(w, "  workspace exclude <path>               always skip this path during scans")
-	fmt.Fprintln(w, "  workspace unexclude <path>             remove from exclusion list")
-	fmt.Fprintln(w, "  workspace marker add|rm <pattern>      custom root markers (e.g. *.csproj)")
-	fmt.Fprintln(w, "  workspace boundary add|rm <dirname>    custom boundary dirs (e.g. .terraform)")
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, h("MODE"))
-	fmt.Fprintln(w, "  --on                                   enable agent capture")
-	fmt.Fprintln(w, "  --off                                  disable agent capture")
-	fmt.Fprintln(w, "  --local                                write to local project config")
+	section := func(s string) string { return tui.BoldErr(tui.CyanErr(s)) }
+	flag := func(s string) string { return tui.YellowErr(s) }
+	const colW = 44
+	row := func(cmd, desc string) string {
+		return fmt.Sprintf("  %-*s%s\n", colW, cmd, tui.DimErr(desc))
+	}
+
+	var b strings.Builder
+	b.WriteString(tui.BoldErr("ctx agents") + " — subagent capture and workspace scanning\n\n")
+
+	b.WriteString(section("Display") + "\n")
+	b.WriteString(row("ctx agents", "show mode and captured agents (current project)"))
+	b.WriteString(row("ctx agents "+flag("--global"), "show agents across all projects"))
+	b.WriteString(row("ctx agents show <name>", "full snapshot for one agent"))
+	b.WriteString(row("ctx agents show <name> "+flag("--project")+" <path>", "from a specific project"))
+	b.WriteString(row("ctx agents show "+flag("--all"), "all agent snapshots"))
+	b.WriteString(row("ctx agents show --all "+flag("--since")+" Nd|Nw", "filter by age (e.g. --since 7d)"))
+	b.WriteString("\n")
+
+	b.WriteString(section("Manage") + "\n")
+	b.WriteString(row("ctx agents archive ["+flag("--project")+" <path>]", "list archived sessions"))
+	b.WriteString(row("ctx agents summarize", "AI summary via claude -p"))
+	b.WriteString(row("ctx agents summarize "+flag("--all")+" ["+flag("--since")+" Nd|Nw]", "include archived / filter by age"))
+	b.WriteString(row("ctx agents rm <name>", "remove a specific agent snapshot"))
+	b.WriteString(row("ctx agents rm "+flag("--before")+" Nd|Nw", "remove snapshots older than N days/weeks"))
+	b.WriteString(row("ctx agents rm "+flag("--session")+" <id>", "remove an archived session"))
+	b.WriteString(row("ctx agents rm "+flag("--all"), "remove all agent snapshots"))
+	b.WriteString("\n")
+
+	b.WriteString(section("Workspace Scanning") + "\n")
+	b.WriteString(row("ctx agents workspace list", "show workspaces, exclusions, markers"))
+	b.WriteString(row("ctx agents workspace add <path>", "add a workspace directory"))
+	b.WriteString(row("ctx agents workspace rm <path>", "remove a workspace directory"))
+	b.WriteString(row("ctx agents workspace exclude <path>", "always skip this path during scans"))
+	b.WriteString(row("ctx agents workspace unexclude <path>", "remove from exclusion list"))
+	b.WriteString(row("ctx agents workspace marker add|rm <pat>", "custom root markers (e.g. *.csproj)"))
+	b.WriteString(row("ctx agents workspace boundary add|rm <dir>", "custom boundary dirs (e.g. .terraform)"))
+	b.WriteString("\n")
+
+	b.WriteString(section("Mode") + "\n")
+	b.WriteString(row("ctx agents "+flag("--on"), "enable agent capture"))
+	b.WriteString(row("ctx agents "+flag("--off"), "disable agent capture"))
+	b.WriteString(row("ctx agents "+flag("--local")+" "+flag("--on"), "write to local project config"))
+
+	fmt.Fprint(os.Stderr, b.String())
 }
 
 func cmdAgentsArchive(projectDir string) error {
@@ -1254,45 +1266,65 @@ func cmdReset() error {
 }
 
 func printUsage() {
-	h := func(s string) string { return tui.BoldErr(s) }
-	w := os.Stderr
-	fmt.Fprintln(w, tui.Bold("ctx")+" — preserve Claude Code context across compactions")
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, h("SETUP"))
-	fmt.Fprintln(w, "  ctx init [--remove|--status]          manage hook registration")
-	fmt.Fprintln(w, "  ctx init --local [--agents on|off]    create local project config")
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, h("SESSION"))
-	fmt.Fprintln(w, "  ctx show [--project <path>]           print current snapshot")
-	fmt.Fprintln(w, "  ctx clear [--agents-only]             delete current snapshot")
-	fmt.Fprintln(w, "  ctx list                              list all projects with snapshots")
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, h("AGENTS"))
-	fmt.Fprintln(w, "  ctx agents                            show mode and captured agents")
-	fmt.Fprintln(w, "  ctx agents --on | --off               enable or disable capture")
-	fmt.Fprintln(w, "  ctx agents --local --on               set mode in local project config")
-	fmt.Fprintln(w, "  ctx agents --global                   show agents across all projects")
-	fmt.Fprintln(w, "  ctx agents show <name>                print full agent snapshot")
-	fmt.Fprintln(w, "  ctx agents show --all [--since Nd]    print all snapshots")
-	fmt.Fprintln(w, "  ctx agents archive                    list archived sessions")
-	fmt.Fprintln(w, "  ctx agents rm <name|--all|--before>   remove agent snapshots")
-	fmt.Fprintln(w, "  ctx agents summarize [--all]          AI summary via claude -p")
-	fmt.Fprintln(w, "  ctx agents workspace add|rm <path>    manage workspace directories")
-	fmt.Fprintln(w, "  ctx agents workspace list             show workspaces and scan config")
-	fmt.Fprintln(w, "  ctx agents --help                     full agents command reference")
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, h("CONFIGURATION"))
-	fmt.Fprintln(w, "  ctx config [--global|--local]         show effective configuration")
-	fmt.Fprintln(w, "  ctx config --debug true|false         toggle verbose hook logging")
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, h("DIAGNOSTICS"))
-	fmt.Fprintln(w, "  ctx doctor                            check installation health")
-	fmt.Fprintln(w, "  ctx logs [-n N | --all]               show hook log entries")
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, h("MAINTENANCE"))
-	fmt.Fprintln(w, "  ctx update                            update to the latest version")
-	fmt.Fprintln(w, "  ctx reset                             clear snapshots")
-	fmt.Fprintln(w, "  ctx uninstall                         remove ctx completely")
-	fmt.Fprintln(w, "  ctx version                           show version")
-	fmt.Fprintln(w, "  ctx changelog [--full]                show release notes")
+	section := func(s string) string { return tui.BoldErr(tui.CyanErr(s)) }
+	flag := func(s string) string { return tui.YellowErr(s) }
+	const colW = 42
+	row := func(cmd, desc string) string {
+		return fmt.Sprintf("  %-*s%s\n", colW, cmd, tui.DimErr(desc))
+	}
+
+	var b strings.Builder
+	b.WriteString(tui.BoldErr("ctx") + " — preserve Claude Code context across compactions\n\n")
+
+	b.WriteString(section("Setup") + "\n")
+	b.WriteString(row("ctx init", "install PreCompact and SessionStart hooks"))
+	b.WriteString(row("ctx init "+flag("--remove"), "remove ctx hooks"))
+	b.WriteString(row("ctx init "+flag("--status"), "check hook installation status"))
+	b.WriteString(row("ctx init "+flag("--local"), "create local project config (.ctx/config.yml)"))
+	b.WriteString(row("ctx init --local "+flag("--agents")+" on|off", "create local config with agents preset"))
+	b.WriteString("\n")
+
+	b.WriteString(section("Session") + "\n")
+	b.WriteString(row("ctx show", "print current snapshot"))
+	b.WriteString(row("ctx show "+flag("--project")+" <path>", "print snapshot for a specific project"))
+	b.WriteString(row("ctx clear", "delete current snapshot"))
+	b.WriteString(row("ctx clear "+flag("--agents-only"), "clear only agent snapshots"))
+	b.WriteString(row("ctx list", "list all projects with snapshots"))
+	b.WriteString("\n")
+
+	b.WriteString(section("Agents") + "\n")
+	b.WriteString(row("ctx agents", "show mode and captured agents"))
+	b.WriteString(row("ctx agents "+flag("--on")+" | "+flag("--off"), "enable or disable capture"))
+	b.WriteString(row("ctx agents "+flag("--local")+" "+flag("--on"), "set mode in local project config"))
+	b.WriteString(row("ctx agents "+flag("--global"), "show agents across all projects"))
+	b.WriteString(row("ctx agents show <name>", "print full agent snapshot"))
+	b.WriteString(row("ctx agents show "+flag("--all")+" ["+flag("--since")+" Nd]", "print all snapshots"))
+	b.WriteString(row("ctx agents archive", "list archived sessions"))
+	b.WriteString(row("ctx agents rm <name|"+flag("--all")+"|"+flag("--before")+">", "remove agent snapshots"))
+	b.WriteString(row("ctx agents summarize ["+flag("--all")+"]", "AI summary via claude -p"))
+	b.WriteString(row("ctx agents workspace add|rm <path>", "manage workspace directories"))
+	b.WriteString(row("ctx agents workspace list", "show workspaces and scan config"))
+	b.WriteString(row("ctx agents "+flag("--help"), "full agents command reference"))
+	b.WriteString("\n")
+
+	b.WriteString(section("Configuration") + "\n")
+	b.WriteString(row("ctx config", "show effective configuration with sources"))
+	b.WriteString(row("ctx config "+flag("--global")+" | "+flag("--local"), "show a specific config file"))
+	b.WriteString(row("ctx config "+flag("--debug")+" true|false", "toggle verbose hook logging"))
+	b.WriteString("\n")
+
+	b.WriteString(section("Diagnostics") + "\n")
+	b.WriteString(row("ctx doctor", "check installation health"))
+	b.WriteString(row("ctx logs", "show last 20 hook log entries"))
+	b.WriteString(row("ctx logs "+flag("-n")+" N | "+flag("--all"), "show N or all entries"))
+	b.WriteString("\n")
+
+	b.WriteString(section("Maintenance") + "\n")
+	b.WriteString(row("ctx update", "update to the latest version"))
+	b.WriteString(row("ctx reset", "clear snapshots interactively"))
+	b.WriteString(row("ctx uninstall", "remove ctx completely"))
+	b.WriteString(row("ctx version", "show version"))
+	b.WriteString(row("ctx changelog ["+flag("--full")+"]", "show release notes"))
+
+	fmt.Fprint(os.Stderr, b.String())
 }

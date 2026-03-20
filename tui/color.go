@@ -78,6 +78,15 @@ func Red(s string) string { return ansi("31", s) }
 // BoldErr returns s in bold, for writing to stderr.
 func BoldErr(s string) string { return ansiErr("1", s) }
 
+// DimErr returns s in dim/faint, for writing to stderr.
+func DimErr(s string) string { return ansiErr("2", s) }
+
+// CyanErr returns s in cyan, for writing to stderr.
+func CyanErr(s string) string { return ansiErr("36", s) }
+
+// YellowErr returns s in yellow, for writing to stderr.
+func YellowErr(s string) string { return ansiErr("33", s) }
+
 // ColorDebug prints terminal detection diagnostics to stdout.
 func ColorDebug() {
 	check := func(name string, f *os.File) {
