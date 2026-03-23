@@ -72,8 +72,6 @@ func main() {
 		install.Doctor()
 	case "logs":
 		err = cmdLogs()
-	case "reset":
-		err = cmdReset()
 	case "uninstall":
 		if install.ConfirmUninstall(os.Args[2:]) {
 			err = install.Uninstall()
@@ -1299,28 +1297,6 @@ func cmdLogs() error {
 	return nil
 }
 
-func cmdReset() error {
-	dir, _ := os.Getwd()
-	fmt.Fprint(os.Stderr, "ctx: clear snapshot for [c]urrent directory, [a]ll projects, or [n] cancel? ")
-	var answer string
-	fmt.Scanln(&answer)
-	switch strings.ToLower(strings.TrimSpace(answer)) {
-	case "c", "current":
-		if err := snapshot.Clear(dir); err != nil {
-			return err
-		}
-		fmt.Fprintln(os.Stderr, "ctx: snapshot cleared for current directory")
-	case "a", "all":
-		if err := snapshot.ClearAll(); err != nil {
-			return err
-		}
-		fmt.Fprintln(os.Stderr, "ctx: all snapshots cleared")
-	default:
-		fmt.Fprintln(os.Stderr, "ctx: cancelled")
-	}
-	return nil
-}
-
 func printUsage() {
 	section := func(s string) string { return tui.BoldErr(tui.CyanErr(s)) }
 	flag := func(s string) string { return tui.YellowErr(s) }
@@ -1378,7 +1354,6 @@ func printUsage() {
 
 	b.WriteString(section("Maintenance") + "\n")
 	b.WriteString(row("ctx update", "update to the latest version"))
-	b.WriteString(row("ctx reset", "clear snapshots interactively"))
 	b.WriteString(row("ctx uninstall", "remove ctx completely"))
 	b.WriteString(row("ctx version", "show version"))
 	b.WriteString(row("ctx changelog ["+flag("--full")+"]", "show release notes"))

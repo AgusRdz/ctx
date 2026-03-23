@@ -191,7 +191,6 @@ ctx logs --all                           Show all entries
 
 ```
 ctx update                               Update to the latest version
-ctx reset                                Interactively clear snapshots
 ctx uninstall                            Remove ctx completely (hooks, data, binary)
 ctx version                              Show version
 ctx changelog                            Show changes in the current version
