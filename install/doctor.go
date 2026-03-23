@@ -41,19 +41,7 @@ func Doctor() {
 				fmt.Println("[ok] hook binary path matches current binary")
 			}
 
-			// Check SubagentStop hook based on active mode
-			cfg, cfgErr := config.EffectiveConfig("")
-			if cfgErr == nil && (cfg.Agents.Mode == "v1" || cfg.Agents.Mode == "v2") {
-				hasSubagent := hasCtxHook(hooks, "SubagentStop", "hook subagent")
-				if hasSubagent {
-					fmt.Printf("[ok] SubagentStop hook installed (mode: %s)\n", cfg.Agents.Mode)
-				} else {
-					fmt.Printf("[!] SubagentStop hook not installed (agents mode=%s requires it)\n", cfg.Agents.Mode)
-					fmt.Println("    fix: ctx init")
-					issues++
-				}
-			}
-		} else {
+			} else {
 			if !hasPC {
 				fmt.Println("[!] PreCompact hook not installed")
 			}
@@ -99,7 +87,6 @@ func Doctor() {
 		} else {
 			fmt.Println("[ok] debug mode: disabled (ctx config --debug true to enable)")
 		}
-		fmt.Printf("[ok] agents mode: %s\n", cfg.Agents.Mode)
 	}
 
 	if issues == 0 {

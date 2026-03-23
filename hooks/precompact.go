@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/AgusRdz/ctx/agents"
 	"github.com/AgusRdz/ctx/config"
 	"github.com/AgusRdz/ctx/logging"
 	"github.com/AgusRdz/ctx/projectstate"
@@ -93,12 +92,6 @@ func RunPreCompact() error {
 		content += "\n" + projectstate.Format(ps, opts.MaxDirtyFiles, opts.MaxErrors)
 		logging.Debug("precompact | project_state=captured | dirty_files=%d | typecheck=%s | tc_errors=%d | tests=%s",
 			len(ps.Git.DirtyFiles), ps.TypeCheck.Tool, ps.TypeCheck.ErrorCount, ps.Tests.Tool)
-	}
-
-	// Archive current agent snapshots before writing the new session snapshot
-	projectHash := snapshot.ProjectHash(projectDir)
-	if archiveErr := agents.ArchiveCurrentAgents(projectHash); archiveErr != nil {
-		logging.Log("precompact | WARNING: archive agents failed: %v", archiveErr)
 	}
 
 	// Write snapshot

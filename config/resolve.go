@@ -72,7 +72,6 @@ func (s FieldSource) String() string {
 // ConfigSources tracks the source of each config field.
 type ConfigSources struct {
 	Debug                  FieldSource
-	Mode                   FieldSource
 	ProjectStateEnabled    FieldSource
 	ProjectStateGit        FieldSource
 	ProjectStateMaxDirty   FieldSource
@@ -102,22 +101,6 @@ func EffectiveConfigWithSources(projectRoot string) (*Config, *ConfigSources, er
 	}
 	if globalPartial.Core.ClaudeTimeoutSecs != nil {
 		cfg.Core.ClaudeTimeoutSecs = *globalPartial.Core.ClaudeTimeoutSecs
-	}
-	if globalPartial.Agents.Mode != nil {
-		cfg.Agents.Mode = *globalPartial.Agents.Mode
-		sources.Mode = SourceGlobal
-	}
-	if globalPartial.Agents.Scan.MaxDepth != nil {
-		cfg.Agents.Scan.MaxDepth = *globalPartial.Agents.Scan.MaxDepth
-	}
-	if globalPartial.Agents.Scan.ExtraRootMarkers != nil {
-		cfg.Agents.Scan.ExtraRootMarkers = *globalPartial.Agents.Scan.ExtraRootMarkers
-	}
-	if globalPartial.Agents.Scan.ExtraBoundaryDirs != nil {
-		cfg.Agents.Scan.ExtraBoundaryDirs = *globalPartial.Agents.Scan.ExtraBoundaryDirs
-	}
-	if globalPartial.Agents.Scan.Exclude != nil {
-		cfg.Agents.Scan.Exclude = *globalPartial.Agents.Scan.Exclude
 	}
 	if globalPartial.ProjectState.Enabled != nil {
 		cfg.ProjectState.Enabled = *globalPartial.ProjectState.Enabled
@@ -177,22 +160,6 @@ func EffectiveConfigWithSources(projectRoot string) (*Config, *ConfigSources, er
 		if localPartial.Core.ClaudeTimeoutSecs != nil {
 			cfg.Core.ClaudeTimeoutSecs = *localPartial.Core.ClaudeTimeoutSecs
 		}
-		if localPartial.Agents.Mode != nil {
-			cfg.Agents.Mode = *localPartial.Agents.Mode
-			sources.Mode = SourceLocal
-		}
-		if localPartial.Agents.Scan.MaxDepth != nil {
-			cfg.Agents.Scan.MaxDepth = *localPartial.Agents.Scan.MaxDepth
-		}
-		if localPartial.Agents.Scan.ExtraRootMarkers != nil {
-			cfg.Agents.Scan.ExtraRootMarkers = *localPartial.Agents.Scan.ExtraRootMarkers
-		}
-		if localPartial.Agents.Scan.ExtraBoundaryDirs != nil {
-			cfg.Agents.Scan.ExtraBoundaryDirs = *localPartial.Agents.Scan.ExtraBoundaryDirs
-		}
-		if localPartial.Agents.Scan.Exclude != nil {
-			cfg.Agents.Scan.Exclude = *localPartial.Agents.Scan.Exclude
-		}
 		if localPartial.ProjectState.Enabled != nil {
 			cfg.ProjectState.Enabled = *localPartial.ProjectState.Enabled
 			sources.ProjectStateEnabled = SourceLocal
@@ -237,11 +204,6 @@ func EffectiveConfigWithSources(projectRoot string) (*Config, *ConfigSources, er
 			cfg.ProjectState.Tests.Command = *localPartial.ProjectState.Tests.Command
 			sources.TestsCommand = SourceLocal
 		}
-	}
-
-	// Migrate legacy v1/v2 mode values to "on"
-	if cfg.Agents.Mode == "v1" || cfg.Agents.Mode == "v2" {
-		cfg.Agents.Mode = "on"
 	}
 
 	return cfg, sources, nil

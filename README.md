@@ -101,9 +101,6 @@ gh attestation verify <binary> --repo AgusRdz/ctx
 ctx init                  # register PreCompact + SessionStart hooks
 ctx show                  # print the current snapshot
 ctx list                  # list all projects with snapshots
-ctx agents --on           # enable subagent capture
-ctx agents                # show captured agents for this project
-ctx agents workspace add ~/dev   # scan ~/dev for projects automatically
 ```
 
 ---
@@ -117,7 +114,6 @@ ctx init                                 Install PreCompact and SessionStart hoo
 ctx init --remove                        Remove ctx hooks
 ctx init --status                        Check hook installation status
 ctx init --local                         Create local project config (.ctx/config.yml)
-ctx init --local --agents on             Create local config with agents capture enabled
 ```
 
 ### Session
@@ -127,47 +123,8 @@ ctx show                                 Print current snapshot
 ctx show --project <path>                Print snapshot for a specific project
 ctx state                                Capture and print current project state
 ctx clear                                Delete current snapshot
-ctx clear --agents-only                  Clear only agent snapshots
 ctx list                                 List all projects with snapshots
 ```
-
-### Agents
-
-```
-ctx agents                               Show mode and captured agents (current project)
-ctx agents --global                      Show agents across all projects
-ctx agents --on                          Enable agent capture
-ctx agents --off                         Disable agent capture
-ctx agents --local --on                  Set mode in local project config
-ctx agents show <name>                   Print full snapshot for one agent
-ctx agents show --all                    Print all agent snapshots
-  [--project <path>] [--since Nd|Nw]     Filter by project or age (e.g. --since 7d)
-ctx agents archive [--project <path>]    List archived agent sessions
-ctx agents summarize                     AI summary of agent work via claude -p
-  [--all] [--since Nd|Nw]                Include archived / filter by age
-  [--project <path>]
-ctx agents rm <name>                     Remove a specific agent snapshot
-ctx agents rm --before Nd|Nw             Remove snapshots older than N days/weeks
-ctx agents rm --session <id>             Remove an entire archived session
-ctx agents rm --all                      Remove all agent snapshots
-ctx agents --help                        Full agents command reference
-```
-
-### Workspace Scanning
-
-```
-ctx agents workspace list                Show configured workspaces, exclusions, markers
-ctx agents workspace add <path>          Add a workspace directory to scan
-ctx agents workspace rm <path>           Remove a workspace directory
-ctx agents workspace exclude <path>      Always skip this path during scans
-ctx agents workspace unexclude <path>    Remove a path from the exclusion list
-ctx agents workspace marker add <glob>   Add a custom root marker (e.g. *.csproj)
-ctx agents workspace marker rm <glob>    Remove a custom root marker
-ctx agents workspace boundary add <dir>  Add a custom boundary dir (e.g. .terraform)
-ctx agents workspace boundary rm <dir>   Remove a custom boundary dir
-```
-
-→ Full reference: [docs/workspace-scanning.md](docs/workspace-scanning.md)
 
 ### Configuration
 
@@ -209,36 +166,14 @@ ctx uses two config layers that merge field-by-field. Local values win over glob
 core:
   debug: false
   claude_timeout: 30     # seconds; default 30
-
-agents:
-  mode: off              # off | on
-  workspaces:
-    - ~/dev
-    - ~/projects
-  scan:
-    max_depth: 3         # default 3
-    extra_root_markers:  # extend built-in markers
-      - "*.csproj"
-    extra_boundary_dirs: # extend built-in boundaries
-      - ".terraform"
-    exclude:             # always skip these paths
-      - ~/dev/scratch
 ```
 
 **Local config** — `{project}/.ctx/config.yml` (optional, project-level overrides)
-
-```yaml
-# only include fields you want to override
-agents:
-  mode: on
-```
 
 Create a local config with:
 
 ```sh
 ctx init --local
-# or with a preset:
-ctx init --local --agents on
 ```
 
 `.ctx/` is automatically added to `.gitignore` — local config is a developer preference, not a team setting.
@@ -331,107 +266,10 @@ ctx config
 effective configuration
 ───────────────────────────────────────
 core.debug              false      [default]
-agents.mode             on         [local]   ← override
 
 global:  ~/.config/ctx/config.yml
 local:   /home/agus/projects/myapp/.ctx/config.yml
 ```
-
----
-
-## Subagent Capture
-
-When you use Claude Code with subagents (general-purpose agents or custom agents defined in `.claude/agents/`), ctx can capture their activity as human-readable snapshots. These are **not** injected into Claude's context — they exist for you to read, review, and share.
-
-Enable agent capture:
-
-```sh
-ctx agents --on
-ctx init    # re-register hooks to include SubagentStop
-```
-
-Enable per project only:
-
-```sh
-ctx init --local --agents on
-ctx init
-```
-
-View captured agents for the current project:
-
-```sh
-ctx agents
-
-mode:    on  [global]
-
-captured agents (current project):
-  feature-RES-219-20260313-150405   custom    stopped 14m ago
-  feature-RES-219-20260313-143201   general   stopped 1h ago
-```
-
-Read what an agent did:
-
-```sh
-ctx agents show feature-RES-219-20260313-150405
-
-# all agents at once
-ctx agents show --all
-
-# filter to last 2 days
-ctx agents show --all --since 2d
-```
-
-Get an AI-generated digest across all agents:
-
-```sh
-ctx agents summarize
-ctx agents summarize --all --since 1w
-```
-
-By default, `summarize` only includes agents from the current (non-archived) set.
-If archived agents exist, ctx will prompt you to include them. Use `--all` to always include them.
-
-Manage old snapshots:
-
-```sh
-ctx agents rm feature-RES-219-20260313-150405   # specific agent
-ctx agents rm --before 7d                        # older than 7 days
-ctx agents rm --session 20260313-150405          # entire archived session
-ctx agents rm --all                              # everything
-```
-
-Agent snapshots are grouped by session. When a compaction happens, current agents are archived under a timestamp slot — accessible later with `ctx agents archive`.
-
----
-
-## Workspace Scanning
-
-When you run `ctx agents` from a directory that isn't a recognized project root (e.g. a parent directory), ctx can scan configured workspace directories for projects automatically.
-
-```sh
-ctx agents workspace add ~/dev        # scan ~/dev for projects
-ctx agents workspace add ~/projects
-```
-
-A directory is identified as a project root when it contains any of these files:
-
-`.git` · `go.mod` · `package.json` · `Cargo.toml` · `pyproject.toml` · `setup.py` ·
-`pom.xml` · `build.gradle` · `build.gradle.kts` · `composer.json` · `Gemfile` ·
-`CMakeLists.txt` · `*.sln`
-
-Scanning stops at boundary directories — it never descends into:
-
-`vendor` · `node_modules` · `__pycache__` · `target` · `dist` · `.next` · `.gradle`
-
-Add custom markers and boundaries for your stack:
-
-```sh
-ctx agents workspace marker add "*.csproj"        # .NET projects
-ctx agents workspace boundary add ".terraform"    # Terraform workspaces
-ctx agents workspace exclude ~/dev/scratch        # always skip this path
-```
-
-→ Full reference: [docs/workspace-scanning.md](docs/workspace-scanning.md)
 
 ---
 
@@ -494,8 +332,6 @@ ctx changelog     # see what changed
 ## What ctx is NOT
 
 ctx is not a memory tool. It doesn't accumulate knowledge across sessions, index conversations, or build a searchable history. It solves one specific problem: **keeping the current session coherent when context gets compacted**. One project, one snapshot, always overwritten.
-
-Agents mode captures subagent activity as human-readable snapshots for review and handoff. They are never injected into Claude's context — the main snapshot is the only thing Claude sees.
 
 ---
 

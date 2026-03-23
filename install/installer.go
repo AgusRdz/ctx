@@ -6,8 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/AgusRdz/ctx/config"
 )
 
 // settingsPath returns the path to Claude Code's settings.json.
@@ -48,18 +46,15 @@ func ctxBinaryPath() string {
 var precompactAutoCmd = ""
 var precompactManualCmd = ""
 var sessionCmd = ""
-var subagentCmd = ""
 
 func init() {
 	bin := ctxBinaryPath()
 	precompactAutoCmd = fmt.Sprintf(`"%s" hook precompact --trigger=auto`, bin)
 	precompactManualCmd = fmt.Sprintf(`"%s" hook precompact --trigger=manual`, bin)
 	sessionCmd = fmt.Sprintf(`"%s" hook session`, bin)
-	subagentCmd = fmt.Sprintf(`"%s" hook subagent`, bin)
 }
 
 // Install adds ctx hooks to Claude Code settings.json.
-// Registers SubagentStop if agents mode is v1 or v2.
 func Install() error {
 	settings, err := readSettings()
 	if err != nil {
@@ -89,21 +84,6 @@ func Install() error {
 		},
 	}
 
-	// Add SubagentStop hook if agents mode is v1 or v2
-	cfg, cfgErr := config.EffectiveConfig("")
-	if cfgErr == nil && (cfg.Agents.Mode == "v1" || cfg.Agents.Mode == "v2") {
-		hooks["SubagentStop"] = []interface{}{
-			map[string]interface{}{
-				"hooks": []interface{}{
-					map[string]interface{}{"type": "command", "command": subagentCmd},
-				},
-			},
-		}
-	} else {
-		// Remove SubagentStop if mode is off
-		delete(hooks, "SubagentStop")
-	}
-
 	settings["hooks"] = hooks
 	return writeSettings(settings)
 }
@@ -126,7 +106,6 @@ func Remove() error {
 
 	delete(hooks, "PreCompact")
 	delete(hooks, "SessionStart")
-	delete(hooks, "SubagentStop")
 
 	if len(hooks) == 0 {
 		delete(settings, "hooks")
@@ -155,12 +134,8 @@ func Status() string {
 
 	hasPreCompact := hasCtxHook(hooks, "PreCompact", "hook precompact")
 	hasSession := hasCtxHook(hooks, "SessionStart", "hook session")
-	hasSubagent := hasCtxHook(hooks, "SubagentStop", "hook subagent")
 
 	if hasPreCompact && hasSession {
-		if hasSubagent {
-			return "Installed (PreCompact + SessionStart + SubagentStop)"
-		}
 		return "Installed (PreCompact + SessionStart)"
 	}
 	if hasPreCompact {

@@ -33,7 +33,6 @@ func LogFile() string {
 // Config holds ctx runtime configuration.
 type Config struct {
 	Core         CoreConfig         `yaml:"core"`
-	Agents       AgentsConfig       `yaml:"agents"`
 	ProjectState ProjectStateConfig `yaml:"project_state"`
 }
 
@@ -68,41 +67,11 @@ type CoreConfig struct {
 	ClaudeTimeoutSecs int  `yaml:"claude_timeout"` // seconds; 0 = use default (30)
 }
 
-// AgentsConfig holds subagent capture settings.
-type AgentsConfig struct {
-	Mode       string     `yaml:"mode"`       // off | on
-	Workspaces []string   `yaml:"workspaces"` // directories to scan for projects
-	Scan       ScanConfig `yaml:"scan"`
-}
-
-// ScanConfig controls how workspace directories are scanned for project roots.
-// All lists are additive — they extend the built-in defaults, not replace them.
-type ScanConfig struct {
-	// MaxDepth is the maximum directory depth to scan below each workspace root.
-	// 0 means use the built-in default (3).
-	MaxDepth int `yaml:"max_depth"`
-
-	// ExtraRootMarkers are additional filenames or glob patterns (e.g. "*.csproj")
-	// that identify a directory as a project root.
-	ExtraRootMarkers []string `yaml:"extra_root_markers"`
-
-	// ExtraBoundaryDirs are additional directory names to never descend into
-	// (e.g. "build", ".terraform").
-	ExtraBoundaryDirs []string `yaml:"extra_boundary_dirs"`
-
-	// Exclude is a list of paths (~ supported) to always skip during workspace
-	// scans, regardless of what markers they contain.
-	Exclude []string `yaml:"exclude"`
-}
-
 // DefaultConfig returns a Config with all defaults populated.
 func DefaultConfig() *Config {
 	return &Config{
 		Core: CoreConfig{
 			Debug: false,
-		},
-		Agents: AgentsConfig{
-			Mode: "off",
 		},
 		ProjectState: ProjectStateConfig{
 			Enabled:       true,
@@ -122,16 +91,6 @@ type partialConfig struct {
 		Debug             *bool `yaml:"debug"`
 		ClaudeTimeoutSecs *int  `yaml:"claude_timeout"`
 	} `yaml:"core"`
-	Agents struct {
-		Mode       *string   `yaml:"mode"`
-		Workspaces *[]string `yaml:"workspaces"`
-		Scan       struct {
-			MaxDepth          *int      `yaml:"max_depth"`
-			ExtraRootMarkers  *[]string `yaml:"extra_root_markers"`
-			ExtraBoundaryDirs *[]string `yaml:"extra_boundary_dirs"`
-			Exclude           *[]string `yaml:"exclude"`
-		} `yaml:"scan"`
-	} `yaml:"agents"`
 	ProjectState struct {
 		Enabled       *bool `yaml:"enabled"`
 		Git           *bool `yaml:"git"`
@@ -171,30 +130,11 @@ func loadPartial(path string) (*partialConfig, error) {
 // applyPartial merges non-nil partial fields into a config copy and returns it.
 func applyPartial(base *Config, pc *partialConfig) *Config {
 	result := *base
-	result.Agents.Scan = base.Agents.Scan // copy scan so we don't mutate base
 	if pc.Core.Debug != nil {
 		result.Core.Debug = *pc.Core.Debug
 	}
 	if pc.Core.ClaudeTimeoutSecs != nil {
 		result.Core.ClaudeTimeoutSecs = *pc.Core.ClaudeTimeoutSecs
-	}
-	if pc.Agents.Mode != nil {
-		result.Agents.Mode = *pc.Agents.Mode
-	}
-	if pc.Agents.Workspaces != nil {
-		result.Agents.Workspaces = *pc.Agents.Workspaces
-	}
-	if pc.Agents.Scan.MaxDepth != nil {
-		result.Agents.Scan.MaxDepth = *pc.Agents.Scan.MaxDepth
-	}
-	if pc.Agents.Scan.ExtraRootMarkers != nil {
-		result.Agents.Scan.ExtraRootMarkers = *pc.Agents.Scan.ExtraRootMarkers
-	}
-	if pc.Agents.Scan.ExtraBoundaryDirs != nil {
-		result.Agents.Scan.ExtraBoundaryDirs = *pc.Agents.Scan.ExtraBoundaryDirs
-	}
-	if pc.Agents.Scan.Exclude != nil {
-		result.Agents.Scan.Exclude = *pc.Agents.Scan.Exclude
 	}
 	if pc.ProjectState.Enabled != nil {
 		result.ProjectState.Enabled = *pc.ProjectState.Enabled
