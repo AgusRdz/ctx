@@ -41,14 +41,15 @@ type TestState struct {
 
 // CaptureOptions controls what gets captured.
 type CaptureOptions struct {
-	Git                  bool
-	MaxDirtyFiles        int
-	MaxErrors            int
-	TypeCheck            bool
-	TypeCheckTimeout     time.Duration
-	Tests                bool
-	TestsTimeout         time.Duration
-	TestsMaxFailedNames  int
+	Git                 bool
+	MaxDirtyFiles       int
+	MaxErrors           int
+	TypeCheck           bool
+	TypeCheckTimeout    time.Duration
+	Tests               bool
+	TestsTimeout        time.Duration
+	TestsMaxFailedNames int
+	TestsCommand        string // custom command; overrides auto-detection when set
 }
 
 // Capture gathers project state for the given directory.
@@ -73,7 +74,11 @@ func Capture(projectDir string, opts CaptureOptions) ProjectState {
 		if maxFailed <= 0 {
 			maxFailed = 5
 		}
-		ps.Tests = CaptureTests(projectDir, timeout, maxFailed)
+		if opts.TestsCommand != "" {
+			ps.Tests = CaptureCustomTests(projectDir, opts.TestsCommand, timeout)
+		} else {
+			ps.Tests = CaptureTests(projectDir, timeout, maxFailed)
+		}
 	}
 	return ps
 }

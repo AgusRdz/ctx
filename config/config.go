@@ -55,9 +55,10 @@ type TypeCheckConfig struct {
 
 // TestsConfig controls test capture (jest / vitest / go test).
 type TestsConfig struct {
-	Enabled        bool `yaml:"enabled"`
-	TimeoutSeconds int  `yaml:"timeout_seconds"`
-	MaxFailedNames int  `yaml:"max_failed_names"`
+	Enabled        bool   `yaml:"enabled"`
+	TimeoutSeconds int    `yaml:"timeout_seconds"`
+	MaxFailedNames int    `yaml:"max_failed_names"`
+	Command        string `yaml:"command"` // custom command; overrides auto-detection
 }
 
 // CoreConfig holds core settings.
@@ -140,9 +141,10 @@ type partialConfig struct {
 			TimeoutSeconds *int  `yaml:"timeout_seconds"`
 		} `yaml:"typecheck"`
 		Tests struct {
-			Enabled        *bool `yaml:"enabled"`
-			TimeoutSeconds *int  `yaml:"timeout_seconds"`
-			MaxFailedNames *int  `yaml:"max_failed_names"`
+			Enabled        *bool   `yaml:"enabled"`
+			TimeoutSeconds *int    `yaml:"timeout_seconds"`
+			MaxFailedNames *int    `yaml:"max_failed_names"`
+			Command        *string `yaml:"command"`
 		} `yaml:"tests"`
 	} `yaml:"project_state"`
 }
@@ -218,6 +220,9 @@ func applyPartial(base *Config, pc *partialConfig) *Config {
 	}
 	if pc.ProjectState.Tests.MaxFailedNames != nil {
 		result.ProjectState.Tests.MaxFailedNames = *pc.ProjectState.Tests.MaxFailedNames
+	}
+	if pc.ProjectState.Tests.Command != nil {
+		result.ProjectState.Tests.Command = *pc.ProjectState.Tests.Command
 	}
 	return &result
 }

@@ -135,6 +135,9 @@ func EffectiveConfigWithSources(projectRoot string) (*Config, *ConfigSources, er
 	if globalPartial.ProjectState.Tests.MaxFailedNames != nil {
 		cfg.ProjectState.Tests.MaxFailedNames = *globalPartial.ProjectState.Tests.MaxFailedNames
 	}
+	if globalPartial.ProjectState.Tests.Command != nil {
+		cfg.ProjectState.Tests.Command = *globalPartial.ProjectState.Tests.Command
+	}
 
 	// Apply local project config if it exists
 	if projectRoot != "" {
@@ -191,6 +194,9 @@ func EffectiveConfigWithSources(projectRoot string) (*Config, *ConfigSources, er
 		}
 		if localPartial.ProjectState.Tests.MaxFailedNames != nil {
 			cfg.ProjectState.Tests.MaxFailedNames = *localPartial.ProjectState.Tests.MaxFailedNames
+		}
+		if localPartial.ProjectState.Tests.Command != nil {
+			cfg.ProjectState.Tests.Command = *localPartial.ProjectState.Tests.Command
 		}
 	}
 

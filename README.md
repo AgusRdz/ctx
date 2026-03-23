@@ -256,8 +256,37 @@ project_state:
     enabled: false       # opt-in — can be slow
     timeout_seconds: 60
     max_failed_names: 5
+    command: ""          # custom command overrides auto-detection (see below)
   max_dirty_files: 10
   max_errors: 5
+```
+
+Auto-detection covers **jest**, **vitest**, and **go test**. For everything else, set a custom command — ctx runs it, checks the exit code (0 = passed, non-zero = failed), and shows the last few output lines on failure:
+
+```yaml
+# pytest
+project_state:
+  tests:
+    enabled: true
+    command: "pytest -q --tb=no"
+
+# cargo test
+project_state:
+  tests:
+    enabled: true
+    command: "cargo test --quiet 2>&1"
+
+# dotnet test
+project_state:
+  tests:
+    enabled: true
+    command: "dotnet test --no-build --logger 'console;verbosity=minimal'"
+
+# rspec
+project_state:
+  tests:
+    enabled: true
+    command: "bundle exec rspec --format progress"
 ```
 
 > **Note for Docker-based Go projects:** ctx runs typecheck commands on the host. If your Go build runs inside Docker and Go is not installed locally, `go build ./...` will fail. Disable typecheck in your local config:

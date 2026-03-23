@@ -1,6 +1,9 @@
 package projectstate
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestParseJestOutput_PassOnly(t *testing.T) {
 	input := `
@@ -105,5 +108,35 @@ func TestParseGoTestOutput_Empty(t *testing.T) {
 	state := parseGoTestOutput("")
 	if state.Pass != 0 || state.Fail != 0 {
 		t.Errorf("expected zeros, got %+v", state)
+	}
+}
+
+func TestCaptureCustomTests_Pass(t *testing.T) {
+	dir := t.TempDir()
+	state := CaptureCustomTests(dir, "exit 0", 10*time.Second)
+	if state.Tool != "custom" {
+		t.Errorf("want tool=custom, got %q", state.Tool)
+	}
+	if state.Pass != 1 || state.Fail != 0 {
+		t.Errorf("want pass=1 fail=0, got pass=%d fail=%d", state.Pass, state.Fail)
+	}
+}
+
+func TestCaptureCustomTests_Fail(t *testing.T) {
+	dir := t.TempDir()
+	state := CaptureCustomTests(dir, "echo 'test failed output' && exit 1", 10*time.Second)
+	if state.Pass != 0 || state.Fail != 1 {
+		t.Errorf("want pass=0 fail=1, got pass=%d fail=%d", state.Pass, state.Fail)
+	}
+	if len(state.FailedNames) == 0 {
+		t.Error("expected last output lines in FailedNames on failure")
+	}
+}
+
+func TestCaptureCustomTests_Timeout(t *testing.T) {
+	dir := t.TempDir()
+	state := CaptureCustomTests(dir, "sleep 60", 1*time.Millisecond)
+	if !state.TimedOut {
+		t.Error("expected TimedOut=true")
 	}
 }

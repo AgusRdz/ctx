@@ -86,6 +86,7 @@ func RunPreCompact() error {
 			Tests:               cfg.ProjectState.Tests.Enabled,
 			TestsTimeout:        config.ClaudeTimeout(cfg.ProjectState.Tests.TimeoutSeconds),
 			TestsMaxFailedNames: cfg.ProjectState.Tests.MaxFailedNames,
+			TestsCommand:        cfg.ProjectState.Tests.Command,
 		}
 		ps := projectstate.Capture(projectDir, opts)
 		content += "\n" + projectstate.Format(ps, opts.MaxDirtyFiles, opts.MaxErrors)

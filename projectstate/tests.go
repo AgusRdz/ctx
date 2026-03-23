@@ -4,6 +4,7 @@ import (
 	"context"
 	"os/exec"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -53,6 +54,49 @@ func CaptureTests(projectDir string, timeout time.Duration, maxFailedNames int) 
 
 	if maxFailedNames > 0 && len(state.FailedNames) > maxFailedNames {
 		state.FailedNames = state.FailedNames[:maxFailedNames]
+	}
+	return state
+}
+
+// CaptureCustomTests runs a user-configured command and interprets its exit code.
+// exit 0 → passed, non-zero → failed. On failure, the last few output lines are
+// included so Claude has context without requiring output format knowledge.
+func CaptureCustomTests(projectDir, command string, timeout time.Duration) TestState {
+	start := time.Now()
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		cmd = exec.CommandContext(ctx, "cmd", "/c", command)
+	} else {
+		cmd = exec.CommandContext(ctx, "sh", "-c", command)
+	}
+	cmd.Dir = projectDir
+
+	out, err := cmd.CombinedOutput()
+	durationMs := time.Since(start).Milliseconds()
+
+	if ctx.Err() == context.DeadlineExceeded {
+		return TestState{Tool: "custom", TimedOut: true, DurationMs: durationMs}
+	}
+
+	state := TestState{Tool: "custom", DurationMs: durationMs}
+	if err == nil {
+		state.Pass = 1 // exit 0 — treat as a single "passed" result
+	} else {
+		state.Fail = 1
+		// Include last 3 lines of output as failed names for context
+		lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+		start := len(lines) - 3
+		if start < 0 {
+			start = 0
+		}
+		for _, line := range lines[start:] {
+			if line = strings.TrimSpace(line); line != "" {
+				state.FailedNames = append(state.FailedNames, line)
+			}
+		}
 	}
 	return state
 }
