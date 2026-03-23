@@ -98,9 +98,11 @@ func ApplyPendingUpdate(currentVersion string) {
 // replaceBinary atomically replaces the binary at destPath with srcPath.
 func replaceBinary(destPath, srcPath string) error {
 	if runtime.GOOS == "windows" {
-		// Windows can't replace a running binary — rename dance
-		oldPath := destPath + ".old"
-		os.Remove(oldPath)
+		// Windows can't delete a running binary, but CAN rename it.
+		// Use os.TempDir() for oldPath to avoid colliding with a locked
+		// .old file left over from a prior update run in the same session.
+		oldPath := filepath.Join(os.TempDir(), filepath.Base(destPath)+".old")
+		os.Remove(oldPath) // best-effort cleanup of any prior temp
 		if err := os.Rename(destPath, oldPath); err != nil && !os.IsNotExist(err) {
 			return err
 		}
@@ -108,7 +110,7 @@ func replaceBinary(destPath, srcPath string) error {
 			os.Rename(oldPath, destPath) // restore
 			return err
 		}
-		os.Remove(oldPath)
+		os.Remove(oldPath) // best-effort; ignored if still locked
 		return nil
 	}
 	// Linux/macOS: rename works even on running binaries
