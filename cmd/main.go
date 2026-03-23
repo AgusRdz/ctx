@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -209,7 +210,7 @@ func cmdInitLocal() error {
 // addToGitignore appends .ctx/ to the project's .gitignore if not already present.
 func addToGitignore(projectDir string) {
 	entry := ".ctx/"
-	path := projectDir + "/.gitignore"
+	path := filepath.Join(projectDir, ".gitignore")
 	data, err := os.ReadFile(path)
 	if err == nil {
 		for _, line := range strings.Split(string(data), "\n") {

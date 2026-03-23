@@ -62,7 +62,7 @@ func RunPreCompact() error {
 		}
 	}
 	logging.Debug("precompact | transcript_path=%s | extracted_bytes=%d",
-		input.TranscriptPath, len(transcriptLines))
+		sanitizeForLog(input.TranscriptPath), len(transcriptLines))
 
 	// Generate snapshot via claude -p, with fallback
 	cfg, _ := config.EffectiveConfig(projectDir)
@@ -132,10 +132,24 @@ func isValidTranscriptPath(path string) bool {
 		return false
 	}
 	claudeDir := filepath.Join(home, ".claude")
-	abs, err := filepath.Abs(path)
+	// EvalSymlinks resolves symlinks so a symlink inside ~/.claude/ pointing
+	// outside cannot bypass the prefix check. Fall back to Abs if the file
+	// doesn't exist yet (transcript may not exist at hook invocation time).
+	resolved, err := filepath.EvalSymlinks(path)
 	if err != nil {
-		return false
+		// File may not exist yet — fall back to lexical resolution.
+		resolved, err = filepath.Abs(path)
+		if err != nil {
+			return false
+		}
 	}
-	return strings.HasPrefix(abs, claudeDir+string(filepath.Separator)) &&
-		strings.HasSuffix(abs, ".jsonl")
+	return strings.HasPrefix(resolved, claudeDir+string(filepath.Separator)) &&
+		strings.HasSuffix(resolved, ".jsonl")
+}
+
+// sanitizeForLog replaces newlines and carriage returns with spaces to prevent log injection.
+func sanitizeForLog(s string) string {
+	s = strings.ReplaceAll(s, "\n", " ")
+	s = strings.ReplaceAll(s, "\r", " ")
+	return s
 }

@@ -252,10 +252,11 @@ func FormatSnapshot(data SnapshotData) string {
 	return b.String()
 }
 
-// truncateField limits a string to n characters, appending "..." if truncated.
+// truncateField limits a string to n runes, appending "..." if truncated.
 func truncateField(s string, n int) string {
-	if len(s) <= n {
+	runes := []rune(s)
+	if len(runes) <= n {
 		return s
 	}
-	return s[:n] + "..."
+	return string(runes[:n]) + "..."
 }

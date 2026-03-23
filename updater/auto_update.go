@@ -35,7 +35,7 @@ func shouldCheck() bool {
 func touchLastCheck() {
 	path := lastCheckPath()
 	os.MkdirAll(filepath.Dir(path), 0o755)
-	os.WriteFile(path, []byte(time.Now().Format(time.RFC3339)), 0o644)
+	os.WriteFile(path, []byte(time.Now().Format(time.RFC3339)), 0o600)
 }
 
 // ApplyPendingUpdate checks for a pending update downloaded in a previous run.
@@ -51,9 +51,9 @@ func ApplyPendingUpdate(currentVersion string) {
 		return
 	}
 
-	// Format: "version\ntmpBinaryPath"
-	parts := strings.SplitN(strings.TrimSpace(string(data)), "\n", 2)
-	if len(parts) != 2 {
+	// Format: "version\ntmpBinaryPath\nchecksum"
+	parts := strings.SplitN(strings.TrimSpace(string(data)), "\n", 3)
+	if len(parts) < 2 {
 		os.Remove(pending)
 		return
 	}
@@ -66,6 +66,17 @@ func ApplyPendingUpdate(currentVersion string) {
 		os.Remove(pending)
 		os.Remove(tmpBinary)
 		return
+	}
+
+	// Re-verify checksum at apply time to prevent TOCTOU attacks.
+	if len(parts) == 3 {
+		expectedChecksum := strings.TrimSpace(parts[2])
+		actualChecksum, err := sha256File(tmpBinary)
+		if err != nil || actualChecksum != expectedChecksum {
+			os.Remove(pending)
+			os.Remove(tmpBinary)
+			return
+		}
 	}
 
 	exe, err := os.Executable()
@@ -150,6 +161,11 @@ func RunBackgroundUpdate(currentVersion string) {
 	}
 
 	pending := pendingUpdatePath()
-	content := fmt.Sprintf("%s\n%s", latest, tmpPath)
-	os.WriteFile(pending, []byte(content), 0o644)
+	checksum, err := sha256File(tmpPath)
+	if err != nil {
+		os.Remove(tmpPath)
+		return
+	}
+	content := fmt.Sprintf("%s\n%s\n%s", latest, tmpPath, checksum)
+	os.WriteFile(pending, []byte(content), 0o600)
 }

@@ -194,7 +194,7 @@ func writeSettings(settings Settings) error {
 		return fmt.Errorf("ctx: %w", err)
 	}
 	data = append(data, '\n')
-	if err := os.WriteFile(p, data, 0o644); err != nil {
+	if err := os.WriteFile(p, data, 0o600); err != nil {
 		return fmt.Errorf("ctx: %w", err)
 	}
 	return nil
