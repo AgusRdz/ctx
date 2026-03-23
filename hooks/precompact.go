@@ -12,6 +12,7 @@ import (
 	"github.com/AgusRdz/ctx/agents"
 	"github.com/AgusRdz/ctx/config"
 	"github.com/AgusRdz/ctx/logging"
+	"github.com/AgusRdz/ctx/projectstate"
 	"github.com/AgusRdz/ctx/snapshot"
 )
 
@@ -73,6 +74,18 @@ func RunPreCompact() error {
 		content = snapshot.GenerateFallback(ctx)
 	}
 	logging.Debug("precompact | snapshot_bytes=%d", len(content))
+
+	// Append project state if enabled
+	if cfg.ProjectState.Enabled {
+		opts := projectstate.CaptureOptions{
+			Git:           cfg.ProjectState.Git,
+			MaxDirtyFiles: cfg.ProjectState.MaxDirtyFiles,
+			MaxErrors:     cfg.ProjectState.MaxErrors,
+		}
+		ps := projectstate.Capture(projectDir, opts)
+		content += "\n" + projectstate.Format(ps, opts.MaxDirtyFiles, opts.MaxErrors)
+		logging.Debug("precompact | project_state=captured | dirty_files=%d", len(ps.Git.DirtyFiles))
+	}
 
 	// Archive current agent snapshots before writing the new session snapshot
 	projectHash := snapshot.ProjectHash(projectDir)

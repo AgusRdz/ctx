@@ -13,6 +13,7 @@ import (
 	"github.com/AgusRdz/ctx/config"
 	"github.com/AgusRdz/ctx/hooks"
 	"github.com/AgusRdz/ctx/install"
+	"github.com/AgusRdz/ctx/projectstate"
 	"github.com/AgusRdz/ctx/snapshot"
 	"github.com/AgusRdz/ctx/tui"
 	"github.com/AgusRdz/ctx/updater"
@@ -61,6 +62,8 @@ func main() {
 		err = cmdList()
 	case "config":
 		err = cmdConfig()
+	case "state":
+		err = cmdState()
 	case "agents":
 		err = cmdAgents()
 	case "changelog", "--changelog":
@@ -312,6 +315,31 @@ func cmdHook() error {
 	default:
 		return fmt.Errorf("ctx: unknown hook %q", os.Args[2])
 	}
+}
+
+func cmdState() error {
+	dir, _ := os.Getwd()
+	for _, arg := range os.Args[2:] {
+		if arg == "--help" || arg == "-h" {
+			fmt.Fprintln(os.Stderr, "Usage: ctx state")
+			fmt.Fprintln(os.Stderr, "  Capture and display the current project state without compacting.")
+			return nil
+		}
+	}
+
+	cfg, err := config.EffectiveConfig(dir)
+	if err != nil {
+		return err
+	}
+
+	opts := projectstate.CaptureOptions{
+		Git:           cfg.ProjectState.Git,
+		MaxDirtyFiles: cfg.ProjectState.MaxDirtyFiles,
+		MaxErrors:     cfg.ProjectState.MaxErrors,
+	}
+	ps := projectstate.Capture(dir, opts)
+	fmt.Print(projectstate.Format(ps, opts.MaxDirtyFiles, opts.MaxErrors))
+	return nil
 }
 
 func cmdShow() error {

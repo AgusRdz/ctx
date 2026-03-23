@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/AgusRdz/ctx/config"
 )
@@ -177,21 +178,7 @@ func hasCtxHook(hooks map[string]interface{}, key string, cmd string) bool {
 		return false
 	}
 	data, _ := json.Marshal(raw)
-	// Simple string search for the command
-	return len(data) > 0 && contains(string(data), cmd)
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && searchString(s, substr)
-}
-
-func searchString(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
+	return len(data) > 0 && strings.Contains(string(data), cmd)
 }
 
 func getOrCreateHooksMap(settings Settings) map[string]interface{} {

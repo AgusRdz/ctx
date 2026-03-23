@@ -64,59 +64,24 @@ func TestHasCtxHook_SessionStart(t *testing.T) {
 	}
 }
 
-func TestContains(t *testing.T) {
-	tests := []struct {
-		name   string
-		s      string
-		substr string
-		want   bool
-	}{
-		{"exact match", "hello", "hello", true},
-		{"substring at start", "hello world", "hello", true},
-		{"substring at end", "hello world", "world", true},
-		{"substring in middle", "hello world foo", "world", true},
-		{"not found", "hello", "xyz", false},
-		{"empty substr", "hello", "", true},
-		{"empty both", "", "", true},
-		{"empty s non-empty substr", "", "a", false},
-		{"substr longer than s", "hi", "hello", false},
-		{"single char found", "abc", "b", true},
-		{"single char not found", "abc", "z", false},
+func TestHasCtxHook_StringMatch(t *testing.T) {
+	hooks := map[string]interface{}{
+		"PreCompact": []interface{}{
+			map[string]interface{}{
+				"hooks": []interface{}{
+					map[string]interface{}{"type": "command", "command": "/usr/local/bin/ctx hook precompact"},
+				},
+			},
+		},
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := contains(tt.s, tt.substr)
-			if got != tt.want {
-				t.Errorf("contains(%q, %q) = %v, want %v", tt.s, tt.substr, got, tt.want)
-			}
-		})
+	if !hasCtxHook(hooks, "PreCompact", "hook precompact") {
+		t.Error("expected hasCtxHook to return true for matching command")
 	}
-}
-
-func TestSearchString(t *testing.T) {
-	tests := []struct {
-		name   string
-		s      string
-		substr string
-		want   bool
-	}{
-		{"found at start", "abcdef", "abc", true},
-		{"found at end", "abcdef", "def", true},
-		{"found in middle", "abcdef", "cde", true},
-		{"not found", "abcdef", "xyz", false},
-		{"empty substr", "abc", "", true},
-		{"same length match", "abc", "abc", true},
-		{"same length no match", "abc", "xyz", false},
+	if hasCtxHook(hooks, "PreCompact", "hook session") {
+		t.Error("expected hasCtxHook to return false for non-matching command")
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := searchString(tt.s, tt.substr)
-			if got != tt.want {
-				t.Errorf("searchString(%q, %q) = %v, want %v", tt.s, tt.substr, got, tt.want)
-			}
-		})
+	if hasCtxHook(hooks, "SessionStart", "hook session") {
+		t.Error("expected hasCtxHook to return false for missing key")
 	}
 }
 

@@ -145,7 +145,10 @@ func download(url, destPath string) error {
 	return nil
 }
 
-// fetchBytes fetches a URL and returns the response body.
+// maxFetchBytes caps the response size for small text files (checksums, signatures).
+const maxFetchBytes = 1 * 1024 * 1024 // 1 MB
+
+// fetchBytes fetches a URL and returns the response body, capped at maxFetchBytes.
 func fetchBytes(url string) ([]byte, error) {
 	resp, err := http.Get(url)
 	if err != nil {
@@ -155,7 +158,7 @@ func fetchBytes(url string) ([]byte, error) {
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("ctx: fetch returned %d for %s", resp.StatusCode, url)
 	}
-	return io.ReadAll(resp.Body)
+	return io.ReadAll(io.LimitReader(resp.Body, maxFetchBytes))
 }
 
 // downloadAndVerify downloads a release binary and verifies its integrity:

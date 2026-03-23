@@ -32,8 +32,32 @@ func LogFile() string {
 
 // Config holds ctx runtime configuration.
 type Config struct {
-	Core   CoreConfig   `yaml:"core"`
-	Agents AgentsConfig `yaml:"agents"`
+	Core         CoreConfig         `yaml:"core"`
+	Agents       AgentsConfig       `yaml:"agents"`
+	ProjectState ProjectStateConfig `yaml:"project_state"`
+}
+
+// ProjectStateConfig controls project state capture at PreCompact time.
+type ProjectStateConfig struct {
+	Enabled       bool              `yaml:"enabled"`
+	Git           bool              `yaml:"git"`
+	TypeCheck     TypeCheckConfig   `yaml:"typecheck"`
+	Tests         TestsConfig       `yaml:"tests"`
+	MaxDirtyFiles int               `yaml:"max_dirty_files"`
+	MaxErrors     int               `yaml:"max_errors"`
+}
+
+// TypeCheckConfig controls typecheck capture (tsc / go build).
+type TypeCheckConfig struct {
+	Enabled        bool `yaml:"enabled"`
+	TimeoutSeconds int  `yaml:"timeout_seconds"`
+}
+
+// TestsConfig controls test capture (jest / vitest / go test).
+type TestsConfig struct {
+	Enabled        bool `yaml:"enabled"`
+	TimeoutSeconds int  `yaml:"timeout_seconds"`
+	MaxFailedNames int  `yaml:"max_failed_names"`
 }
 
 // CoreConfig holds core settings.
@@ -78,6 +102,14 @@ func DefaultConfig() *Config {
 		Agents: AgentsConfig{
 			Mode: "off",
 		},
+		ProjectState: ProjectStateConfig{
+			Enabled:       true,
+			Git:           true,
+			TypeCheck:     TypeCheckConfig{Enabled: true, TimeoutSeconds: 20},
+			Tests:         TestsConfig{Enabled: false, TimeoutSeconds: 60, MaxFailedNames: 5},
+			MaxDirtyFiles: 10,
+			MaxErrors:     5,
+		},
 	}
 }
 
@@ -98,6 +130,21 @@ type partialConfig struct {
 			Exclude           *[]string `yaml:"exclude"`
 		} `yaml:"scan"`
 	} `yaml:"agents"`
+	ProjectState struct {
+		Enabled       *bool `yaml:"enabled"`
+		Git           *bool `yaml:"git"`
+		MaxDirtyFiles *int  `yaml:"max_dirty_files"`
+		MaxErrors     *int  `yaml:"max_errors"`
+		TypeCheck     struct {
+			Enabled        *bool `yaml:"enabled"`
+			TimeoutSeconds *int  `yaml:"timeout_seconds"`
+		} `yaml:"typecheck"`
+		Tests struct {
+			Enabled        *bool `yaml:"enabled"`
+			TimeoutSeconds *int  `yaml:"timeout_seconds"`
+			MaxFailedNames *int  `yaml:"max_failed_names"`
+		} `yaml:"tests"`
+	} `yaml:"project_state"`
 }
 
 // loadPartial reads a config file as a partial config.
@@ -144,6 +191,33 @@ func applyPartial(base *Config, pc *partialConfig) *Config {
 	}
 	if pc.Agents.Scan.Exclude != nil {
 		result.Agents.Scan.Exclude = *pc.Agents.Scan.Exclude
+	}
+	if pc.ProjectState.Enabled != nil {
+		result.ProjectState.Enabled = *pc.ProjectState.Enabled
+	}
+	if pc.ProjectState.Git != nil {
+		result.ProjectState.Git = *pc.ProjectState.Git
+	}
+	if pc.ProjectState.MaxDirtyFiles != nil {
+		result.ProjectState.MaxDirtyFiles = *pc.ProjectState.MaxDirtyFiles
+	}
+	if pc.ProjectState.MaxErrors != nil {
+		result.ProjectState.MaxErrors = *pc.ProjectState.MaxErrors
+	}
+	if pc.ProjectState.TypeCheck.Enabled != nil {
+		result.ProjectState.TypeCheck.Enabled = *pc.ProjectState.TypeCheck.Enabled
+	}
+	if pc.ProjectState.TypeCheck.TimeoutSeconds != nil {
+		result.ProjectState.TypeCheck.TimeoutSeconds = *pc.ProjectState.TypeCheck.TimeoutSeconds
+	}
+	if pc.ProjectState.Tests.Enabled != nil {
+		result.ProjectState.Tests.Enabled = *pc.ProjectState.Tests.Enabled
+	}
+	if pc.ProjectState.Tests.TimeoutSeconds != nil {
+		result.ProjectState.Tests.TimeoutSeconds = *pc.ProjectState.Tests.TimeoutSeconds
+	}
+	if pc.ProjectState.Tests.MaxFailedNames != nil {
+		result.ProjectState.Tests.MaxFailedNames = *pc.ProjectState.Tests.MaxFailedNames
 	}
 	return &result
 }

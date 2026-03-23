@@ -108,6 +108,33 @@ func EffectiveConfigWithSources(projectRoot string) (*Config, *ConfigSources, er
 	if globalPartial.Agents.Scan.Exclude != nil {
 		cfg.Agents.Scan.Exclude = *globalPartial.Agents.Scan.Exclude
 	}
+	if globalPartial.ProjectState.Enabled != nil {
+		cfg.ProjectState.Enabled = *globalPartial.ProjectState.Enabled
+	}
+	if globalPartial.ProjectState.Git != nil {
+		cfg.ProjectState.Git = *globalPartial.ProjectState.Git
+	}
+	if globalPartial.ProjectState.MaxDirtyFiles != nil {
+		cfg.ProjectState.MaxDirtyFiles = *globalPartial.ProjectState.MaxDirtyFiles
+	}
+	if globalPartial.ProjectState.MaxErrors != nil {
+		cfg.ProjectState.MaxErrors = *globalPartial.ProjectState.MaxErrors
+	}
+	if globalPartial.ProjectState.TypeCheck.Enabled != nil {
+		cfg.ProjectState.TypeCheck.Enabled = *globalPartial.ProjectState.TypeCheck.Enabled
+	}
+	if globalPartial.ProjectState.TypeCheck.TimeoutSeconds != nil {
+		cfg.ProjectState.TypeCheck.TimeoutSeconds = *globalPartial.ProjectState.TypeCheck.TimeoutSeconds
+	}
+	if globalPartial.ProjectState.Tests.Enabled != nil {
+		cfg.ProjectState.Tests.Enabled = *globalPartial.ProjectState.Tests.Enabled
+	}
+	if globalPartial.ProjectState.Tests.TimeoutSeconds != nil {
+		cfg.ProjectState.Tests.TimeoutSeconds = *globalPartial.ProjectState.Tests.TimeoutSeconds
+	}
+	if globalPartial.ProjectState.Tests.MaxFailedNames != nil {
+		cfg.ProjectState.Tests.MaxFailedNames = *globalPartial.ProjectState.Tests.MaxFailedNames
+	}
 
 	// Apply local project config if it exists
 	if projectRoot != "" {
@@ -137,6 +164,33 @@ func EffectiveConfigWithSources(projectRoot string) (*Config, *ConfigSources, er
 		}
 		if localPartial.Agents.Scan.Exclude != nil {
 			cfg.Agents.Scan.Exclude = *localPartial.Agents.Scan.Exclude
+		}
+		if localPartial.ProjectState.Enabled != nil {
+			cfg.ProjectState.Enabled = *localPartial.ProjectState.Enabled
+		}
+		if localPartial.ProjectState.Git != nil {
+			cfg.ProjectState.Git = *localPartial.ProjectState.Git
+		}
+		if localPartial.ProjectState.MaxDirtyFiles != nil {
+			cfg.ProjectState.MaxDirtyFiles = *localPartial.ProjectState.MaxDirtyFiles
+		}
+		if localPartial.ProjectState.MaxErrors != nil {
+			cfg.ProjectState.MaxErrors = *localPartial.ProjectState.MaxErrors
+		}
+		if localPartial.ProjectState.TypeCheck.Enabled != nil {
+			cfg.ProjectState.TypeCheck.Enabled = *localPartial.ProjectState.TypeCheck.Enabled
+		}
+		if localPartial.ProjectState.TypeCheck.TimeoutSeconds != nil {
+			cfg.ProjectState.TypeCheck.TimeoutSeconds = *localPartial.ProjectState.TypeCheck.TimeoutSeconds
+		}
+		if localPartial.ProjectState.Tests.Enabled != nil {
+			cfg.ProjectState.Tests.Enabled = *localPartial.ProjectState.Tests.Enabled
+		}
+		if localPartial.ProjectState.Tests.TimeoutSeconds != nil {
+			cfg.ProjectState.Tests.TimeoutSeconds = *localPartial.ProjectState.Tests.TimeoutSeconds
+		}
+		if localPartial.ProjectState.Tests.MaxFailedNames != nil {
+			cfg.ProjectState.Tests.MaxFailedNames = *localPartial.ProjectState.Tests.MaxFailedNames
 		}
 	}
 

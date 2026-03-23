@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/AgusRdz/ctx/config"
 )
@@ -114,5 +115,5 @@ func hookContainsBinary(hooks map[string]interface{}, binPath string) bool {
 		return false
 	}
 	data, _ := json.Marshal(hooks)
-	return searchString(string(data), binPath)
+	return strings.Contains(string(data), binPath)
 }
