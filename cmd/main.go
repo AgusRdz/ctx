@@ -319,16 +319,14 @@ func cmdHook() error {
 
 func cmdState() error {
 	dir, _ := os.Getwd()
-	jsonOut := false
 	for _, arg := range os.Args[2:] {
 		switch arg {
-		case "--json":
-			jsonOut = true
 		case "--help", "-h":
-			fmt.Fprintln(os.Stderr, "Usage: ctx state [--json]")
+			fmt.Fprintln(os.Stderr, "Usage: ctx state")
 			fmt.Fprintln(os.Stderr, "  Capture and display the current project state without compacting.")
-			fmt.Fprintln(os.Stderr, "  --json    Output as JSON instead of markdown")
 			return nil
+		default:
+			return fmt.Errorf("ctx: unknown flag %q for state", arg)
 		}
 	}
 
@@ -349,17 +347,7 @@ func cmdState() error {
 		TestsMaxFailedNames: cfg.ProjectState.Tests.MaxFailedNames,
 		TestsCommand:        cfg.ProjectState.Tests.Command,
 	}
-	ps := projectstate.Capture(dir, opts)
-
-	if jsonOut {
-		out, err := projectstate.FormatJSON(ps)
-		if err != nil {
-			return err
-		}
-		fmt.Print(out)
-		return nil
-	}
-	fmt.Print(projectstate.Format(ps, opts.MaxDirtyFiles, opts.MaxErrors))
+	fmt.Print(projectstate.Format(projectstate.Capture(dir, opts), opts.MaxDirtyFiles, opts.MaxErrors))
 	return nil
 }
 
@@ -1355,6 +1343,7 @@ func printUsage() {
 	b.WriteString(section("Session") + "\n")
 	b.WriteString(row("ctx show", "print current snapshot"))
 	b.WriteString(row("ctx show "+flag("--project")+" <path>", "print snapshot for a specific project"))
+	b.WriteString(row("ctx state", "capture and print current project state"))
 	b.WriteString(row("ctx clear", "delete current snapshot"))
 	b.WriteString(row("ctx clear "+flag("--agents-only"), "clear only agent snapshots"))
 	b.WriteString(row("ctx list", "list all projects with snapshots"))

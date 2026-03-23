@@ -62,27 +62,6 @@ func TestRoundTrip_AppendToSnapshot(t *testing.T) {
 	}
 }
 
-// TestRoundTrip_JSONRoundTrip verifies that FormatJSON produces valid JSON
-// with the expected fields.
-func TestRoundTrip_JSONRoundTrip(t *testing.T) {
-	dir := initTestRepo(t)
-
-	opts := CaptureOptions{Git: true, MaxDirtyFiles: 10, MaxErrors: 5}
-	ps := Capture(dir, opts)
-	out, err := FormatJSON(ps)
-	if err != nil {
-		t.Fatalf("FormatJSON error: %v", err)
-	}
-	if !strings.Contains(out, `"branch"`) {
-		t.Errorf("JSON missing branch field:\n%s", out)
-	}
-	if !strings.Contains(out, `"captured_at"`) {
-		t.Errorf("JSON missing captured_at field:\n%s", out)
-	}
-	if !strings.Contains(out, "main") {
-		t.Errorf("JSON missing branch value:\n%s", out)
-	}
-}
 
 // TestRoundTrip_Timeout verifies that a very short timeout produces a partial
 // state rather than a panic or hang.

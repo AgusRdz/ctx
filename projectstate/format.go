@@ -1,7 +1,6 @@
 package projectstate
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 )
@@ -73,15 +72,6 @@ func formatTypeCheck(b *strings.Builder, tc TypeCheckState, maxErrors int) {
 	for _, e := range shown {
 		b.WriteString("  " + e + "\n")
 	}
-}
-
-// FormatJSON returns the ProjectState as indented JSON.
-func FormatJSON(ps ProjectState) (string, error) {
-	data, err := json.MarshalIndent(ps, "", "  ")
-	if err != nil {
-		return "", err
-	}
-	return string(data) + "\n", nil
 }
 
 func formatTests(b *strings.Builder, ts TestState) {

@@ -100,7 +100,6 @@ gh attestation verify <binary> --repo AgusRdz/ctx
 ```sh
 ctx init                  # register PreCompact + SessionStart hooks
 ctx show                  # print the current snapshot
-ctx state                 # capture and print current project state
 ctx list                  # list all projects with snapshots
 ctx agents --on           # enable subagent capture
 ctx agents                # show captured agents for this project
@@ -127,7 +126,6 @@ ctx init --local --agents on             Create local config with agents capture
 ctx show                                 Print current snapshot
 ctx show --project <path>                Print snapshot for a specific project
 ctx state                                Capture and print current project state
-ctx state --json                         Print project state as JSON
 ctx clear                                Delete current snapshot
 ctx clear --agents-only                  Clear only agent snapshots
 ctx list                                 List all projects with snapshots
