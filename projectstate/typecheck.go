@@ -4,7 +4,6 @@ import (
 	"context"
 	"os/exec"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -56,6 +55,7 @@ func CaptureTypeCheck(projectDir string, timeout time.Duration, maxErrors int) T
 		ErrorCount: len(errors),
 		Errors:     shown,
 		DurationMs: durationMs,
+		Note:       MonorepoNote(projectDir, tool),
 	}
 }
 
@@ -105,20 +105,3 @@ func parseGoBuildErrors(output string) []string {
 	return errors
 }
 
-// goLineNumFromError extracts the line number from a go build error string for sorting.
-// Returns 0 if not parseable.
-func goLineNumFromError(s string) int {
-	// "L23 file.go  msg" — extract the number after L
-	if len(s) < 2 || s[0] != 'L' {
-		return 0
-	}
-	end := strings.IndexByte(s[1:], ' ')
-	if end < 0 {
-		return 0
-	}
-	n, _ := strconv.Atoi(s[1 : end+1])
-	return n
-}
-
-// suppress unused warning
-var _ = goLineNumFromError

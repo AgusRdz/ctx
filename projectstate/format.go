@@ -1,6 +1,7 @@
 package projectstate
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 )
@@ -52,15 +53,19 @@ func formatGit(b *strings.Builder, g GitState, maxDirtyFiles int) {
 
 func formatTypeCheck(b *strings.Builder, tc TypeCheckState, maxErrors int) {
 	b.WriteString("\n")
+	note := ""
+	if tc.Note != "" {
+		note = " [" + tc.Note + "]"
+	}
 	if tc.TimedOut {
-		b.WriteString(fmt.Sprintf("TypeCheck: %s — timed out\n", tc.Tool))
+		b.WriteString(fmt.Sprintf("TypeCheck: %s — timed out%s\n", tc.Tool, note))
 		return
 	}
 	if tc.ErrorCount == 0 {
-		b.WriteString(fmt.Sprintf("TypeCheck: %s — ok\n", tc.Tool))
+		b.WriteString(fmt.Sprintf("TypeCheck: %s — ok%s\n", tc.Tool, note))
 		return
 	}
-	b.WriteString(fmt.Sprintf("TypeCheck: %s — %d error(s)\n", tc.Tool, tc.ErrorCount))
+	b.WriteString(fmt.Sprintf("TypeCheck: %s — %d error(s)%s\n", tc.Tool, tc.ErrorCount, note))
 	shown := tc.Errors
 	if maxErrors > 0 && len(shown) > maxErrors {
 		shown = shown[:maxErrors]
@@ -68,6 +73,15 @@ func formatTypeCheck(b *strings.Builder, tc TypeCheckState, maxErrors int) {
 	for _, e := range shown {
 		b.WriteString("  " + e + "\n")
 	}
+}
+
+// FormatJSON returns the ProjectState as indented JSON.
+func FormatJSON(ps ProjectState) (string, error) {
+	data, err := json.MarshalIndent(ps, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	return string(data) + "\n", nil
 }
 
 func formatTests(b *strings.Builder, ts TestState) {

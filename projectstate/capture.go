@@ -4,38 +4,39 @@ import "time"
 
 // ProjectState holds all captured project state at a point in time.
 type ProjectState struct {
-	CapturedAt int64
-	Git        GitState
-	TypeCheck  TypeCheckState
-	Tests      TestState
+	CapturedAt int64          `json:"captured_at"`
+	Git        GitState       `json:"git"`
+	TypeCheck  TypeCheckState `json:"typecheck,omitempty"`
+	Tests      TestState      `json:"tests,omitempty"`
 }
 
 // GitState holds captured git state.
 type GitState struct {
-	Branch      string
-	DirtyFiles  []string // from git diff --name-only HEAD
-	LastCommit  string   // "a3f2b1c Add auth middleware"
-	AheadBehind string   // "↑2 ↓0", empty if no upstream
+	Branch      string   `json:"branch"`
+	DirtyFiles  []string `json:"dirty_files"`  // from git diff --name-only HEAD
+	LastCommit  string   `json:"last_commit"`  // "a3f2b1c Add auth middleware"
+	AheadBehind string   `json:"ahead_behind"` // "↑2 ↓0", empty if no upstream
 }
 
 // TypeCheckState holds the result of a typecheck run.
 type TypeCheckState struct {
-	Tool       string   // "tsc" | "go build" | "none"
-	ErrorCount int
-	Errors     []string // first N errors, compact format
-	DurationMs int64
-	TimedOut   bool
+	Tool       string   `json:"tool"`                 // "tsc" | "go build" | "none"
+	ErrorCount int      `json:"error_count"`
+	Errors     []string `json:"errors,omitempty"`     // first N errors, compact format
+	DurationMs int64    `json:"duration_ms"`
+	TimedOut   bool     `json:"timed_out,omitempty"`
+	Note       string   `json:"note,omitempty"`       // e.g. monorepo warning
 }
 
 // TestState holds the result of a test run.
 type TestState struct {
-	Tool        string   // "jest" | "vitest" | "go test" | "none"
-	Pass        int
-	Fail        int
-	Skip        int
-	FailedNames []string // first N failed test names
-	DurationMs  int64
-	TimedOut    bool
+	Tool        string   `json:"tool"`                      // "jest" | "vitest" | "go test" | "none"
+	Pass        int      `json:"pass"`
+	Fail        int      `json:"fail"`
+	Skip        int      `json:"skip"`
+	FailedNames []string `json:"failed_names,omitempty"`    // first N failed test names
+	DurationMs  int64    `json:"duration_ms"`
+	TimedOut    bool     `json:"timed_out,omitempty"`
 }
 
 // CaptureOptions controls what gets captured.

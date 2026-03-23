@@ -319,10 +319,15 @@ func cmdHook() error {
 
 func cmdState() error {
 	dir, _ := os.Getwd()
+	jsonOut := false
 	for _, arg := range os.Args[2:] {
-		if arg == "--help" || arg == "-h" {
-			fmt.Fprintln(os.Stderr, "Usage: ctx state")
+		switch arg {
+		case "--json":
+			jsonOut = true
+		case "--help", "-h":
+			fmt.Fprintln(os.Stderr, "Usage: ctx state [--json]")
 			fmt.Fprintln(os.Stderr, "  Capture and display the current project state without compacting.")
+			fmt.Fprintln(os.Stderr, "  --json    Output as JSON instead of markdown")
 			return nil
 		}
 	}
@@ -343,6 +348,15 @@ func cmdState() error {
 		TestsMaxFailedNames: cfg.ProjectState.Tests.MaxFailedNames,
 	}
 	ps := projectstate.Capture(dir, opts)
+
+	if jsonOut {
+		out, err := projectstate.FormatJSON(ps)
+		if err != nil {
+			return err
+		}
+		fmt.Print(out)
+		return nil
+	}
 	fmt.Print(projectstate.Format(ps, opts.MaxDirtyFiles, opts.MaxErrors))
 	return nil
 }

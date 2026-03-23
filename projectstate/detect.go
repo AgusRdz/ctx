@@ -1,6 +1,7 @@
 package projectstate
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 )
@@ -39,6 +40,46 @@ func DetectTestRunner(projectDir string) string {
 		return "go test"
 	}
 	return "none"
+}
+
+// MonorepoNote returns a non-empty string if subdirectories contain additional
+// config files of the same type, indicating a monorepo. ctx uses root-level
+// config only — the note informs users that subdirectory configs are ignored.
+func MonorepoNote(projectDir, tool string) string {
+	if tool == "none" {
+		return ""
+	}
+	var marker string
+	switch tool {
+	case "tsc":
+		marker = "tsconfig.json"
+	case "go build", "go test":
+		marker = "go.mod"
+	default:
+		return ""
+	}
+
+	entries, err := os.ReadDir(projectDir)
+	if err != nil {
+		return ""
+	}
+	extra := 0
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if name == "node_modules" || name == "vendor" || name[0] == '.' {
+			continue
+		}
+		if fileExists(filepath.Join(projectDir, name, marker)) {
+			extra++
+		}
+	}
+	if extra == 0 {
+		return ""
+	}
+	return fmt.Sprintf("root only (%d more %s in subdirs — ignored)", extra, marker)
 }
 
 func fileExists(path string) bool {
