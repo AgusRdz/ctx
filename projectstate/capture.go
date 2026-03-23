@@ -40,17 +40,29 @@ type TestState struct {
 
 // CaptureOptions controls what gets captured.
 type CaptureOptions struct {
-	Git           bool
-	MaxDirtyFiles int
-	MaxErrors     int
+	Git                  bool
+	MaxDirtyFiles        int
+	MaxErrors            int
+	TypeCheck            bool
+	TypeCheckTimeout     time.Duration
+	Tests                bool
+	TestsTimeout         time.Duration
+	TestsMaxFailedNames  int
 }
 
 // Capture gathers project state for the given directory.
-// TypeCheck and Tests are stubs until Phase 2/3.
 func Capture(projectDir string, opts CaptureOptions) ProjectState {
 	ps := ProjectState{CapturedAt: time.Now().Unix()}
 	if opts.Git {
 		ps.Git = CaptureGit(projectDir, 10*time.Second)
 	}
+	if opts.TypeCheck {
+		timeout := opts.TypeCheckTimeout
+		if timeout <= 0 {
+			timeout = 20 * time.Second
+		}
+		ps.TypeCheck = CaptureTypeCheck(projectDir, timeout, opts.MaxErrors)
+	}
+	// Tests captured in Phase 3
 	return ps
 }

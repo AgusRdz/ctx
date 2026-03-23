@@ -78,13 +78,16 @@ func RunPreCompact() error {
 	// Append project state if enabled
 	if cfg.ProjectState.Enabled {
 		opts := projectstate.CaptureOptions{
-			Git:           cfg.ProjectState.Git,
-			MaxDirtyFiles: cfg.ProjectState.MaxDirtyFiles,
-			MaxErrors:     cfg.ProjectState.MaxErrors,
+			Git:              cfg.ProjectState.Git,
+			MaxDirtyFiles:    cfg.ProjectState.MaxDirtyFiles,
+			MaxErrors:        cfg.ProjectState.MaxErrors,
+			TypeCheck:        cfg.ProjectState.TypeCheck.Enabled,
+			TypeCheckTimeout: config.ClaudeTimeout(cfg.ProjectState.TypeCheck.TimeoutSeconds),
 		}
 		ps := projectstate.Capture(projectDir, opts)
 		content += "\n" + projectstate.Format(ps, opts.MaxDirtyFiles, opts.MaxErrors)
-		logging.Debug("precompact | project_state=captured | dirty_files=%d", len(ps.Git.DirtyFiles))
+		logging.Debug("precompact | project_state=captured | dirty_files=%d | typecheck=%s | tc_errors=%d",
+			len(ps.Git.DirtyFiles), ps.TypeCheck.Tool, ps.TypeCheck.ErrorCount)
 	}
 
 	// Archive current agent snapshots before writing the new session snapshot

@@ -243,6 +243,30 @@ ctx init --local --agents on
 
 `.ctx/` is automatically added to `.gitignore` — local config is a developer preference, not a team setting.
 
+**Project state config** — controls what ctx captures at compaction time:
+
+```yaml
+project_state:
+  enabled: true
+  git: true
+  typecheck:
+    enabled: true
+    timeout_seconds: 20
+  tests:
+    enabled: false       # opt-in — can be slow
+    timeout_seconds: 60
+    max_failed_names: 5
+  max_dirty_files: 10
+  max_errors: 5
+```
+
+> **Note for Docker-based Go projects:** ctx runs typecheck commands on the host. If your Go build runs inside Docker and Go is not installed locally, `go build ./...` will fail. Disable typecheck in your local config:
+> ```yaml
+> project_state:
+>   typecheck:
+>     enabled: false
+> ```
+
 View effective configuration (with source per field):
 
 ```sh
