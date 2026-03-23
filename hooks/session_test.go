@@ -2,6 +2,7 @@ package hooks
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 )
@@ -41,25 +42,78 @@ func TestSnapshotAge_RecentSnapshot(t *testing.T) {
 	}
 }
 
-func TestStaleWarning_Injected(t *testing.T) {
-	// A snapshot older than staleThreshold should get a warning prepended
+func TestExtractSnapshotCommit_Found(t *testing.T) {
+	content := "## Project State (at compaction)\nGit:  main | ↑1 ↓0 | last: a3f2b1c Add auth middleware\n"
+	hash := extractSnapshotCommit(content)
+	if hash != "a3f2b1c" {
+		t.Errorf("want a3f2b1c, got %q", hash)
+	}
+}
+
+func TestExtractSnapshotCommit_NoProjectState(t *testing.T) {
+	content := "# Session Context\n\n## Goal\ntest\n"
+	hash := extractSnapshotCommit(content)
+	if hash != "" {
+		t.Errorf("want empty, got %q", hash)
+	}
+}
+
+func TestExtractSnapshotCommit_NoUpstream(t *testing.T) {
+	// Git line without ahead/behind (no upstream)
+	content := "Git:  main | last: b4c3d2e Fix typo\n"
+	hash := extractSnapshotCommit(content)
+	if hash != "b4c3d2e" {
+		t.Errorf("want b4c3d2e, got %q", hash)
+	}
+}
+
+func TestFormatAge(t *testing.T) {
+	cases := []struct {
+		d    time.Duration
+		want string
+	}{
+		{2 * time.Hour, "2 hours ago"},
+		{1 * time.Hour, "1 hour ago"},
+		{24 * time.Hour, "1 day ago"},
+		{48 * time.Hour, "2 days ago"},
+		{72 * time.Hour, "3 days ago"},
+	}
+	for _, c := range cases {
+		got := formatAge(c.d)
+		if got != c.want {
+			t.Errorf("formatAge(%v): want %q, got %q", c.d, c.want, got)
+		}
+	}
+}
+
+func TestStalenessWarning_AgeOnly_Stale(t *testing.T) {
 	old := time.Now().UTC().Add(-8 * 24 * time.Hour)
 	content := fmt.Sprintf("_Captured: %s_\n\n## Goal\ntest\n", old.Format("2006-01-02T15:04Z"))
 
-	age := snapshotAge(content)
-	if age <= staleThreshold {
-		t.Fatalf("test setup: expected age > %v, got %v", staleThreshold, age)
+	warning := stalenessWarning(content, "")
+	if !strings.Contains(warning, "days old") {
+		t.Errorf("expected age-based warning, got: %q", warning)
 	}
+}
 
-	// Simulate what RunSession does
-	days := int(age.Hours() / 24)
-	warning := fmt.Sprintf("> ⚠️ This snapshot is %d days old — context may be stale.\n\n", days)
-	result := warning + content
+func TestStalenessWarning_AgeOnly_Fresh(t *testing.T) {
+	now := time.Now().UTC()
+	content := fmt.Sprintf("_Captured: %s_\n\n## Goal\ntest\n", now.Format("2006-01-02T15:04Z"))
 
-	if len(result) <= len(content) {
-		t.Error("warning should make result longer than original content")
+	warning := stalenessWarning(content, "")
+	if warning != "" {
+		t.Errorf("expected no warning for fresh snapshot, got: %q", warning)
 	}
-	if result[:2] != "> " {
-		t.Errorf("result should start with blockquote, got: %q", result[:10])
+}
+
+func TestStalenessWarning_NoGitDir_FreshAge_NoWarning(t *testing.T) {
+	// Non-git temp dir: gitShortHead returns "" → fall back to age check → fresh → no warning
+	dir := t.TempDir()
+	now := time.Now().UTC()
+	content := fmt.Sprintf("_Captured: %s_\nGit:  main | last: abc1234 Some commit\n", now.Format("2006-01-02T15:04Z"))
+
+	warning := stalenessWarning(content, dir)
+	if warning != "" {
+		t.Errorf("expected no warning for fresh snapshot in non-git dir, got: %q", warning)
 	}
 }
