@@ -47,10 +47,11 @@ type ProjectStateConfig struct {
 	MaxErrors     int               `yaml:"max_errors"`
 }
 
-// TypeCheckConfig controls typecheck capture (tsc / go build).
+// TypeCheckConfig controls typecheck capture (tsc / go build / custom command).
 type TypeCheckConfig struct {
-	Enabled        bool `yaml:"enabled"`
-	TimeoutSeconds int  `yaml:"timeout_seconds"`
+	Enabled        bool   `yaml:"enabled"`
+	TimeoutSeconds int    `yaml:"timeout_seconds"`
+	Command        string `yaml:"command"` // custom command; overrides auto-detection when set
 }
 
 // TestsConfig controls test capture (jest / vitest / go test).
@@ -137,8 +138,9 @@ type partialConfig struct {
 		MaxDirtyFiles *int  `yaml:"max_dirty_files"`
 		MaxErrors     *int  `yaml:"max_errors"`
 		TypeCheck     struct {
-			Enabled        *bool `yaml:"enabled"`
-			TimeoutSeconds *int  `yaml:"timeout_seconds"`
+			Enabled        *bool   `yaml:"enabled"`
+			TimeoutSeconds *int    `yaml:"timeout_seconds"`
+			Command        *string `yaml:"command"`
 		} `yaml:"typecheck"`
 		Tests struct {
 			Enabled        *bool   `yaml:"enabled"`
@@ -211,6 +213,9 @@ func applyPartial(base *Config, pc *partialConfig) *Config {
 	}
 	if pc.ProjectState.TypeCheck.TimeoutSeconds != nil {
 		result.ProjectState.TypeCheck.TimeoutSeconds = *pc.ProjectState.TypeCheck.TimeoutSeconds
+	}
+	if pc.ProjectState.TypeCheck.Command != nil {
+		result.ProjectState.TypeCheck.Command = *pc.ProjectState.TypeCheck.Command
 	}
 	if pc.ProjectState.Tests.Enabled != nil {
 		result.ProjectState.Tests.Enabled = *pc.ProjectState.Tests.Enabled

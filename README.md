@@ -100,6 +100,7 @@ gh attestation verify <binary> --repo AgusRdz/ctx
 ```sh
 ctx init                  # register PreCompact + SessionStart hooks
 ctx show                  # print the current snapshot
+ctx state                 # capture and print current project state
 ctx list                  # list all projects with snapshots
 ctx agents --on           # enable subagent capture
 ctx agents                # show captured agents for this project
@@ -125,6 +126,8 @@ ctx init --local --agents on             Create local config with agents capture
 ```
 ctx show                                 Print current snapshot
 ctx show --project <path>                Print snapshot for a specific project
+ctx state                                Capture and print current project state
+ctx state --json                         Print project state as JSON
 ctx clear                                Delete current snapshot
 ctx clear --agents-only                  Clear only agent snapshots
 ctx list                                 List all projects with snapshots
@@ -252,6 +255,7 @@ project_state:
   typecheck:
     enabled: true
     timeout_seconds: 20
+    command: ""          # custom command overrides auto-detection (see below)
   tests:
     enabled: false       # opt-in — can be slow
     timeout_seconds: 60
@@ -261,7 +265,33 @@ project_state:
   max_errors: 5
 ```
 
-Auto-detection covers **jest**, **vitest**, and **go test**. For everything else, set a custom command — ctx runs it, checks the exit code (0 = passed, non-zero = failed), and shows the last few output lines on failure:
+Auto-detection for **typecheck** covers `tsc` (tsconfig.json) and `go build` (go.mod). Auto-detection for **tests** covers jest, vitest, and go test. For everything else, set a custom command — ctx runs it, checks the exit code (0 = passed/ok, non-zero = failed/errors), and shows the last few output lines on failure:
+
+```yaml
+# phpstan (PHP)
+project_state:
+  typecheck:
+    enabled: true
+    command: "vendor/bin/phpstan analyse --no-progress"
+
+# mypy (Python)
+project_state:
+  typecheck:
+    enabled: true
+    command: "mypy src --no-error-summary"
+
+# clippy (Rust)
+project_state:
+  typecheck:
+    enabled: true
+    command: "cargo clippy --quiet 2>&1"
+
+# dotnet build (C#)
+project_state:
+  typecheck:
+    enabled: true
+    command: "dotnet build --no-restore -v minimal"
+```
 
 ```yaml
 # pytest

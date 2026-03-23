@@ -4,6 +4,7 @@ import (
 	"context"
 	"os/exec"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -57,6 +58,51 @@ func CaptureTypeCheck(projectDir string, timeout time.Duration, maxErrors int) T
 		DurationMs: durationMs,
 		Note:       MonorepoNote(projectDir, tool),
 	}
+}
+
+// CaptureCustomTypeCheck runs a user-configured typecheck command and interprets its exit code.
+// exit 0 → ok (no errors), non-zero → errors. On failure, the last few output lines are
+// included so Claude has context without requiring output format knowledge.
+func CaptureCustomTypeCheck(projectDir, command string, timeout time.Duration, maxErrors int) TypeCheckState {
+	start := time.Now()
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	var cmd *exec.Cmd
+	if runtime.GOOS == "windows" {
+		cmd = exec.CommandContext(ctx, "cmd", "/c", command)
+	} else {
+		cmd = exec.CommandContext(ctx, "sh", "-c", command)
+	}
+	cmd.Dir = projectDir
+
+	out, err := cmd.CombinedOutput()
+	durationMs := time.Since(start).Milliseconds()
+
+	if ctx.Err() == context.DeadlineExceeded {
+		return TypeCheckState{Tool: "custom", TimedOut: true, DurationMs: durationMs}
+	}
+
+	state := TypeCheckState{Tool: "custom", DurationMs: durationMs}
+	if err != nil {
+		// Include last N lines of output as errors for context
+		lines := strings.Split(strings.TrimSpace(string(out)), "\n")
+		n := maxErrors
+		if n <= 0 {
+			n = 5
+		}
+		start := len(lines) - n
+		if start < 0 {
+			start = 0
+		}
+		for _, line := range lines[start:] {
+			if line = strings.TrimSpace(line); line != "" {
+				state.Errors = append(state.Errors, line)
+			}
+		}
+		state.ErrorCount = len(state.Errors)
+	}
+	return state
 }
 
 // tscErrorRe matches: path/to/file.ts(line,col): error TSxxxx: message

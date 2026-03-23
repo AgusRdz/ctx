@@ -83,6 +83,7 @@ func RunPreCompact() error {
 			MaxErrors:           cfg.ProjectState.MaxErrors,
 			TypeCheck:           cfg.ProjectState.TypeCheck.Enabled,
 			TypeCheckTimeout:    config.ClaudeTimeout(cfg.ProjectState.TypeCheck.TimeoutSeconds),
+			TypeCheckCommand:    cfg.ProjectState.TypeCheck.Command,
 			Tests:               cfg.ProjectState.Tests.Enabled,
 			TestsTimeout:        config.ClaudeTimeout(cfg.ProjectState.Tests.TimeoutSeconds),
 			TestsMaxFailedNames: cfg.ProjectState.Tests.MaxFailedNames,

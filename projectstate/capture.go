@@ -46,6 +46,7 @@ type CaptureOptions struct {
 	MaxErrors           int
 	TypeCheck           bool
 	TypeCheckTimeout    time.Duration
+	TypeCheckCommand    string // custom command; overrides auto-detection when set
 	Tests               bool
 	TestsTimeout        time.Duration
 	TestsMaxFailedNames int
@@ -63,7 +64,11 @@ func Capture(projectDir string, opts CaptureOptions) ProjectState {
 		if timeout <= 0 {
 			timeout = 20 * time.Second
 		}
-		ps.TypeCheck = CaptureTypeCheck(projectDir, timeout, opts.MaxErrors)
+		if opts.TypeCheckCommand != "" {
+			ps.TypeCheck = CaptureCustomTypeCheck(projectDir, opts.TypeCheckCommand, timeout, opts.MaxErrors)
+		} else {
+			ps.TypeCheck = CaptureTypeCheck(projectDir, timeout, opts.MaxErrors)
+		}
 	}
 	if opts.Tests {
 		timeout := opts.TestsTimeout

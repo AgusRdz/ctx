@@ -343,6 +343,7 @@ func cmdState() error {
 		MaxErrors:           cfg.ProjectState.MaxErrors,
 		TypeCheck:           cfg.ProjectState.TypeCheck.Enabled,
 		TypeCheckTimeout:    config.ClaudeTimeout(cfg.ProjectState.TypeCheck.TimeoutSeconds),
+		TypeCheckCommand:    cfg.ProjectState.TypeCheck.Command,
 		Tests:               cfg.ProjectState.Tests.Enabled,
 		TestsTimeout:        config.ClaudeTimeout(cfg.ProjectState.Tests.TimeoutSeconds),
 		TestsMaxFailedNames: cfg.ProjectState.Tests.MaxFailedNames,
@@ -564,6 +565,25 @@ func showEffectiveConfig(projectDir string) error {
 
 	printField("core.debug", effective.Core.Debug, sources.Debug)
 	printField("agents.mode", effective.Agents.Mode, sources.Mode)
+	printField("project_state.enabled", effective.ProjectState.Enabled, sources.ProjectStateEnabled)
+	printField("project_state.git", effective.ProjectState.Git, sources.ProjectStateGit)
+	printField("project_state.max_dirty_files", effective.ProjectState.MaxDirtyFiles, sources.ProjectStateMaxDirty)
+	printField("project_state.max_errors", effective.ProjectState.MaxErrors, sources.ProjectStateMaxErrors)
+	printField("project_state.typecheck.enabled", effective.ProjectState.TypeCheck.Enabled, sources.TypeCheckEnabled)
+	printField("project_state.typecheck.timeout_seconds", effective.ProjectState.TypeCheck.TimeoutSeconds, sources.TypeCheckTimeout)
+	tcCmd := effective.ProjectState.TypeCheck.Command
+	if tcCmd == "" {
+		tcCmd = "(auto-detect)"
+	}
+	printField("project_state.typecheck.command", tcCmd, sources.TypeCheckCommand)
+	printField("project_state.tests.enabled", effective.ProjectState.Tests.Enabled, sources.TestsEnabled)
+	printField("project_state.tests.timeout_seconds", effective.ProjectState.Tests.TimeoutSeconds, sources.TestsTimeout)
+	printField("project_state.tests.max_failed_names", effective.ProjectState.Tests.MaxFailedNames, sources.TestsMaxFailedNames)
+	testsCmd := effective.ProjectState.Tests.Command
+	if testsCmd == "" {
+		testsCmd = "(auto-detect)"
+	}
+	printField("project_state.tests.command", testsCmd, sources.TestsCommand)
 
 	fmt.Println()
 	fmt.Printf("global:  %s\n", config.GlobalConfigPath())
