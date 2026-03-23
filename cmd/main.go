@@ -333,11 +333,14 @@ func cmdState() error {
 	}
 
 	opts := projectstate.CaptureOptions{
-		Git:              cfg.ProjectState.Git,
-		MaxDirtyFiles:    cfg.ProjectState.MaxDirtyFiles,
-		MaxErrors:        cfg.ProjectState.MaxErrors,
-		TypeCheck:        cfg.ProjectState.TypeCheck.Enabled,
-		TypeCheckTimeout: config.ClaudeTimeout(cfg.ProjectState.TypeCheck.TimeoutSeconds),
+		Git:                 cfg.ProjectState.Git,
+		MaxDirtyFiles:       cfg.ProjectState.MaxDirtyFiles,
+		MaxErrors:           cfg.ProjectState.MaxErrors,
+		TypeCheck:           cfg.ProjectState.TypeCheck.Enabled,
+		TypeCheckTimeout:    config.ClaudeTimeout(cfg.ProjectState.TypeCheck.TimeoutSeconds),
+		Tests:               cfg.ProjectState.Tests.Enabled,
+		TestsTimeout:        config.ClaudeTimeout(cfg.ProjectState.Tests.TimeoutSeconds),
+		TestsMaxFailedNames: cfg.ProjectState.Tests.MaxFailedNames,
 	}
 	ps := projectstate.Capture(dir, opts)
 	fmt.Print(projectstate.Format(ps, opts.MaxDirtyFiles, opts.MaxErrors))

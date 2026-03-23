@@ -63,6 +63,16 @@ func Capture(projectDir string, opts CaptureOptions) ProjectState {
 		}
 		ps.TypeCheck = CaptureTypeCheck(projectDir, timeout, opts.MaxErrors)
 	}
-	// Tests captured in Phase 3
+	if opts.Tests {
+		timeout := opts.TestsTimeout
+		if timeout <= 0 {
+			timeout = 60 * time.Second
+		}
+		maxFailed := opts.TestsMaxFailedNames
+		if maxFailed <= 0 {
+			maxFailed = 5
+		}
+		ps.Tests = CaptureTests(projectDir, timeout, maxFailed)
+	}
 	return ps
 }

@@ -78,16 +78,19 @@ func RunPreCompact() error {
 	// Append project state if enabled
 	if cfg.ProjectState.Enabled {
 		opts := projectstate.CaptureOptions{
-			Git:              cfg.ProjectState.Git,
-			MaxDirtyFiles:    cfg.ProjectState.MaxDirtyFiles,
-			MaxErrors:        cfg.ProjectState.MaxErrors,
-			TypeCheck:        cfg.ProjectState.TypeCheck.Enabled,
-			TypeCheckTimeout: config.ClaudeTimeout(cfg.ProjectState.TypeCheck.TimeoutSeconds),
+			Git:                 cfg.ProjectState.Git,
+			MaxDirtyFiles:       cfg.ProjectState.MaxDirtyFiles,
+			MaxErrors:           cfg.ProjectState.MaxErrors,
+			TypeCheck:           cfg.ProjectState.TypeCheck.Enabled,
+			TypeCheckTimeout:    config.ClaudeTimeout(cfg.ProjectState.TypeCheck.TimeoutSeconds),
+			Tests:               cfg.ProjectState.Tests.Enabled,
+			TestsTimeout:        config.ClaudeTimeout(cfg.ProjectState.Tests.TimeoutSeconds),
+			TestsMaxFailedNames: cfg.ProjectState.Tests.MaxFailedNames,
 		}
 		ps := projectstate.Capture(projectDir, opts)
 		content += "\n" + projectstate.Format(ps, opts.MaxDirtyFiles, opts.MaxErrors)
-		logging.Debug("precompact | project_state=captured | dirty_files=%d | typecheck=%s | tc_errors=%d",
-			len(ps.Git.DirtyFiles), ps.TypeCheck.Tool, ps.TypeCheck.ErrorCount)
+		logging.Debug("precompact | project_state=captured | dirty_files=%d | typecheck=%s | tc_errors=%d | tests=%s",
+			len(ps.Git.DirtyFiles), ps.TypeCheck.Tool, ps.TypeCheck.ErrorCount, ps.Tests.Tool)
 	}
 
 	// Archive current agent snapshots before writing the new session snapshot
