@@ -26,9 +26,10 @@ func Doctor() {
 
 		hasPC := hasCtxHook(hooks, "PreCompact", "hook precompact")
 		hasSS := hasCtxHook(hooks, "SessionStart", "hook session")
+		hasPoC := hasCtxHook(hooks, "PostCompact", "hook postcompact")
 
-		if hasPC && hasSS {
-			fmt.Println("[ok] hooks installed (PreCompact + SessionStart)")
+		if hasPC && hasSS && hasPoC {
+			fmt.Println("[ok] hooks installed (PreCompact + PostCompact + SessionStart)")
 
 			// 2. Check binary path in hook matches current binary
 			currentBin := ctxBinaryPath()
@@ -40,13 +41,15 @@ func Doctor() {
 			} else {
 				fmt.Println("[ok] hook binary path matches current binary")
 			}
-
-			} else {
+		} else {
 			if !hasPC {
 				fmt.Println("[!] PreCompact hook not installed")
 			}
 			if !hasSS {
 				fmt.Println("[!] SessionStart hook not installed")
+			}
+			if !hasPoC {
+				fmt.Println("[!] PostCompact hook not installed")
 			}
 			fmt.Println("    fix: ctx init")
 			issues++

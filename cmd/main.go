@@ -236,18 +236,20 @@ func addToGitignore(projectDir string) {
 
 func cmdHook() error {
 	if len(os.Args) < 3 {
-		return fmt.Errorf("ctx: usage: ctx hook <precompact|session>")
+		return fmt.Errorf("ctx: usage: ctx hook <precompact|session|postcompact>")
 	}
 
 	switch os.Args[2] {
 	case "--help", "-h":
-		fmt.Fprintln(os.Stderr, "Usage: ctx hook <precompact|session>")
+		fmt.Fprintln(os.Stderr, "Usage: ctx hook <precompact|session|postcompact>")
 		fmt.Fprintln(os.Stderr, "  These commands are called by Claude Code hooks, not directly.")
 		return nil
 	case "precompact":
 		return hooks.RunPreCompact()
 	case "session":
 		return hooks.RunSession()
+	case "postcompact":
+		return hooks.RunPostCompact()
 	default:
 		return fmt.Errorf("ctx: unknown hook %q", os.Args[2])
 	}
@@ -306,7 +308,8 @@ func cmdShow() error {
 		}
 	}
 
-	content, err := snapshot.Read(dir)
+	branch := snapshot.BranchForProject(dir)
+	content, err := snapshot.Read(dir, branch)
 	if err != nil {
 		return err
 	}
@@ -320,19 +323,31 @@ func cmdShow() error {
 
 func cmdClear() error {
 	dir, _ := os.Getwd()
+	allBranches := false
 
 	for _, arg := range os.Args[2:] {
 		switch arg {
+		case "--all":
+			allBranches = true
 		case "--help", "-h":
-			fmt.Fprintln(os.Stderr, "Usage: ctx clear")
+			fmt.Fprintln(os.Stderr, "Usage: ctx clear [--all]")
+			fmt.Fprintln(os.Stderr, "  (no flag)  Clear snapshot for current branch only")
+			fmt.Fprintln(os.Stderr, "  --all      Clear all branch snapshots for this project")
 			return nil
 		default:
 			return fmt.Errorf("ctx: unknown flag %q for clear", arg)
 		}
 	}
 
-	if err := snapshot.Clear(dir); err != nil {
-		return err
+	if allBranches {
+		if err := snapshot.ClearAll(dir); err != nil {
+			return err
+		}
+	} else {
+		branch := snapshot.BranchForProject(dir)
+		if err := snapshot.Clear(dir, branch); err != nil {
+			return err
+		}
 	}
 	fmt.Fprintln(os.Stderr, "ctx: snapshot cleared")
 	return nil
@@ -353,7 +368,11 @@ func cmdList() error {
 			d := time.Since(info.CapturedAt).Round(time.Minute)
 			age = fmt.Sprintf(" (%s ago)", d)
 		}
-		fmt.Printf("%s\n  %s%s\n\n", info.ProjectDir, info.Goal, age)
+		branchLabel := ""
+		if info.Branch != "" && info.Branch != "_" {
+			branchLabel = fmt.Sprintf(" [%s]", info.Branch)
+		}
+		fmt.Printf("%s%s\n  %s%s\n\n", info.ProjectDir, branchLabel, info.Goal, age)
 	}
 	if legacy > 0 {
 		fmt.Fprintf(os.Stderr, "ctx: %d legacy snapshot(s) not shown — trigger a compaction to refresh them\n", legacy)
@@ -577,7 +596,7 @@ func printUsage() {
 	b.WriteString(tui.BoldErr("ctx") + " — preserve Claude Code context across compactions\n\n")
 
 	b.WriteString(section("Setup") + "\n")
-	b.WriteString(row("ctx init", "install PreCompact and SessionStart hooks"))
+	b.WriteString(row("ctx init", "install PreCompact, PostCompact, and SessionStart hooks"))
 	b.WriteString(row("ctx init "+flag("--remove"), "remove ctx hooks"))
 	b.WriteString(row("ctx init "+flag("--status"), "check hook installation status"))
 	b.WriteString(row("ctx init "+flag("--local"), "create local project config (.ctx/config.yml)"))
@@ -587,7 +606,8 @@ func printUsage() {
 	b.WriteString(row("ctx show", "print current snapshot"))
 	b.WriteString(row("ctx show "+flag("--project")+" <path>", "print snapshot for a specific project"))
 	b.WriteString(row("ctx state", "capture and print current project state"))
-	b.WriteString(row("ctx clear", "delete current snapshot"))
+	b.WriteString(row("ctx clear", "delete snapshot for current branch"))
+	b.WriteString(row("ctx clear "+flag("--all"), "delete all branch snapshots for this project"))
 	b.WriteString(row("ctx list", "list all projects with snapshots"))
 	b.WriteString("\n")
 

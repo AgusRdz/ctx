@@ -39,17 +39,18 @@ func RunSession() error {
 		projectDir, _ = os.Getwd()
 	}
 
-	content, err := snapshot.Read(projectDir)
+	branch := snapshot.BranchForProject(projectDir)
+	content, err := snapshot.Read(projectDir, branch)
 	if err != nil {
 		logging.Log("session | ERROR: %v", err)
 		return err
 	}
 
 	if content == "" {
-		logging.Log("session | project=%s | snapshot=none", projectDir)
+		logging.Log("session | project=%s | branch=%s | snapshot=none", projectDir, branch)
 	} else {
 		fmt.Print(content)
-		logging.Log("session | project=%s | snapshot=found", projectDir)
+		logging.Log("session | project=%s | branch=%s | snapshot=found", projectDir, branch)
 	}
 
 	return nil

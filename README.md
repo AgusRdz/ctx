@@ -8,7 +8,7 @@
 
 When Claude Code hits its context window limit, it compacts the conversation. This is necessary, but lossy: the current goal, technical decisions, the file you were editing, what to do next — all of it can get diluted or lost. After two or three compactions, Claude may forget what you were building, repeat work, or contradict decisions you already made together.
 
-ctx hooks into Claude Code's **PreCompact** and **SessionStart** events to capture and restore a structured snapshot of your working context, every time.
+ctx hooks into Claude Code's **PreCompact**, **PostCompact**, and **SessionStart** events to capture and restore a structured snapshot of your working context, every time. Snapshots are scoped per branch, so parallel sessions on different branches never collide.
 
 ---
 
@@ -23,12 +23,16 @@ ctx hooks into Claude Code's **PreCompact** and **SessionStart** events to captu
 │       ▼                                                      │
 │  PreCompact hook → ctx reads transcript + git state          │
 │                  → calls claude -p to extract semantics      │
-│                  → writes snapshot.md (goal/decisions/next)  │
+│                  → writes snapshot (scoped to branch)        │
 │                                                              │
-│  Session resumes                                             │
+│  PostCompact hook → ctx reads the snapshot just written      │
+│                   → prints it to stdout                      │
+│                   → Claude Code re-injects it immediately    │
+│                                                              │
+│  New session on same branch                                  │
 │       │                                                      │
 │       ▼                                                      │
-│  SessionStart hook → ctx finds snapshot for this project     │
+│  SessionStart hook → ctx finds snapshot for project+branch   │
 │                    → prints it to stdout                     │
 │                    → Claude Code injects it as context       │
 └──────────────────────────────────────────────────────────────┘
@@ -98,9 +102,9 @@ gh attestation verify <binary> --repo AgusRdz/ctx
 ## Quick Start
 
 ```sh
-ctx init                  # register PreCompact + SessionStart hooks
-ctx show                  # print the current snapshot
-ctx list                  # list all projects with snapshots
+ctx init                  # register PreCompact + PostCompact + SessionStart hooks
+ctx show                  # print the current snapshot (current branch)
+ctx list                  # list all projects and branches with snapshots
 ```
 
 ---
@@ -110,7 +114,7 @@ ctx list                  # list all projects with snapshots
 ### Setup
 
 ```
-ctx init                                 Install PreCompact and SessionStart hooks
+ctx init                                 Install PreCompact, PostCompact, and SessionStart hooks
 ctx init --remove                        Remove ctx hooks
 ctx init --status                        Check hook installation status
 ctx init --local                         Create local project config (.ctx/config.yml)
@@ -119,11 +123,12 @@ ctx init --local                         Create local project config (.ctx/confi
 ### Session
 
 ```
-ctx show                                 Print current snapshot
+ctx show                                 Print snapshot for current branch
 ctx show --project <path>                Print snapshot for a specific project
 ctx state                                Capture and print current project state
-ctx clear                                Delete current snapshot
-ctx list                                 List all projects with snapshots
+ctx clear                                Delete snapshot for current branch
+ctx clear --all                          Delete all branch snapshots for this project
+ctx list                                 List all projects and branches with snapshots
 ```
 
 ### Configuration
@@ -296,9 +301,11 @@ Building the authentication middleware
 Add token refresh endpoint and write integration tests
 ```
 
-Snapshots are stored at:
-- Linux/macOS: `~/.local/share/ctx/{project-hash}/snapshot.md`
-- Windows: `%LOCALAPPDATA%\ctx\{project-hash}\snapshot.md`
+Snapshots are stored per branch:
+- Linux/macOS: `~/.local/share/ctx/{project-hash}/{branch}/snapshot.md`
+- Windows: `%LOCALAPPDATA%\ctx\{project-hash}\{branch}\snapshot.md`
+
+Two sessions on different branches in the same project write to separate snapshots and never overwrite each other. Non-git directories and detached HEAD use `_` as the branch name.
 
 ---
 

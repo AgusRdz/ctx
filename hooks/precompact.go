@@ -95,7 +95,8 @@ func RunPreCompact() error {
 	}
 
 	// Write snapshot
-	if err := snapshot.Write(projectDir, content); err != nil {
+	branch := snapshot.BranchForProject(projectDir)
+	if err := snapshot.Write(projectDir, branch, content); err != nil {
 		logging.Log("precompact | ERROR: %v", err)
 		return err
 	}
@@ -108,8 +109,8 @@ func RunPreCompact() error {
 	if trigger == "" {
 		trigger = "unknown"
 	}
-	logging.Log("precompact | trigger=%s | project=%s | duration=%.1fs | status=ok",
-		trigger, projectDir, duration.Seconds())
+	logging.Log("precompact | trigger=%s | project=%s | branch=%s | duration=%.1fs | status=ok",
+		trigger, projectDir, branch, duration.Seconds())
 
 	return nil
 }

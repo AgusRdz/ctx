@@ -46,12 +46,16 @@ func ctxBinaryPath() string {
 var precompactAutoCmd = ""
 var precompactManualCmd = ""
 var sessionCmd = ""
+var postcompactAutoCmd = ""
+var postcompactManualCmd = ""
 
 func init() {
 	bin := ctxBinaryPath()
 	precompactAutoCmd = fmt.Sprintf(`"%s" hook precompact --trigger=auto`, bin)
 	precompactManualCmd = fmt.Sprintf(`"%s" hook precompact --trigger=manual`, bin)
 	sessionCmd = fmt.Sprintf(`"%s" hook session`, bin)
+	postcompactAutoCmd = fmt.Sprintf(`"%s" hook postcompact --trigger=auto`, bin)
+	postcompactManualCmd = fmt.Sprintf(`"%s" hook postcompact --trigger=manual`, bin)
 }
 
 // Install adds ctx hooks to Claude Code settings.json.
@@ -84,6 +88,18 @@ func Install() error {
 		},
 	}
 
+	// Add PostCompact hook (both auto and manual matchers)
+	hooks["PostCompact"] = []interface{}{
+		map[string]interface{}{
+			"matcher": "auto",
+			"hooks":   []interface{}{map[string]interface{}{"type": "command", "command": postcompactAutoCmd}},
+		},
+		map[string]interface{}{
+			"matcher": "manual",
+			"hooks":   []interface{}{map[string]interface{}{"type": "command", "command": postcompactManualCmd}},
+		},
+	}
+
 	settings["hooks"] = hooks
 	return writeSettings(settings)
 }
@@ -106,6 +122,7 @@ func Remove() error {
 
 	delete(hooks, "PreCompact")
 	delete(hooks, "SessionStart")
+	delete(hooks, "PostCompact")
 
 	if len(hooks) == 0 {
 		delete(settings, "hooks")
@@ -134,9 +151,13 @@ func Status() string {
 
 	hasPreCompact := hasCtxHook(hooks, "PreCompact", "hook precompact")
 	hasSession := hasCtxHook(hooks, "SessionStart", "hook session")
+	hasPostCompact := hasCtxHook(hooks, "PostCompact", "hook postcompact")
 
+	if hasPreCompact && hasSession && hasPostCompact {
+		return "Installed (PreCompact + PostCompact + SessionStart)"
+	}
 	if hasPreCompact && hasSession {
-		return "Installed (PreCompact + SessionStart)"
+		return "Partially installed (PreCompact + SessionStart, missing PostCompact — run: ctx init)"
 	}
 	if hasPreCompact {
 		return "Partially installed (PreCompact only)"
