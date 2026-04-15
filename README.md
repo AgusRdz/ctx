@@ -1,13 +1,7 @@
 # ctx
 
 <p align="center">
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100" width="240" height="120">
-    <path d="M20 15 L20 42 M20 15 L47 15" fill="none" stroke="#00b4d8" stroke-width="3" stroke-linecap="square"/>
-    <path d="M180 15 L180 42 M180 15 L153 15" fill="none" stroke="#00b4d8" stroke-width="3" stroke-linecap="square"/>
-    <path d="M20 85 L20 58 M20 85 L47 85" fill="none" stroke="#00b4d8" stroke-width="3" stroke-linecap="square"/>
-    <path d="M180 85 L180 58 M180 85 L153 85" fill="none" stroke="#00b4d8" stroke-width="3" stroke-linecap="square"/>
-    <text x="100" y="62" text-anchor="middle" font-family="monospace" font-size="30" font-weight="700" fill="#cdd9e5">ctx</text>
-  </svg>
+  <img src="logo.svg" alt="ctx logo" width="240" />
 </p>
 
 **Preserve Claude Code session context across compactions — automatically.**
