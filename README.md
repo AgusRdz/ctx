@@ -1,7 +1,13 @@
 # ctx
 
 <p align="center">
-  <img src="logo.png" alt="ctx logo" width="200" />
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100" width="240" height="120">
+    <path d="M20 15 L20 42 M20 15 L47 15" fill="none" stroke="#00b4d8" stroke-width="3" stroke-linecap="square"/>
+    <path d="M180 15 L180 42 M180 15 L153 15" fill="none" stroke="#00b4d8" stroke-width="3" stroke-linecap="square"/>
+    <path d="M20 85 L20 58 M20 85 L47 85" fill="none" stroke="#00b4d8" stroke-width="3" stroke-linecap="square"/>
+    <path d="M180 85 L180 58 M180 85 L153 85" fill="none" stroke="#00b4d8" stroke-width="3" stroke-linecap="square"/>
+    <text x="100" y="62" text-anchor="middle" font-family="monospace" font-size="30" font-weight="700" fill="#cdd9e5">ctx</text>
+  </svg>
 </p>
 
 **Preserve Claude Code session context across compactions — automatically.**
@@ -9,6 +15,22 @@
 When Claude Code hits its context window limit, it compacts the conversation. This is necessary, but lossy: the current goal, technical decisions, the file you were editing, what to do next — all of it can get diluted or lost. After two or three compactions, Claude may forget what you were building, repeat work, or contradict decisions you already made together.
 
 ctx hooks into Claude Code's **PreCompact**, **PostCompact**, and **SessionStart** events to capture and restore a structured snapshot of your working context, every time. Snapshots are scoped per branch, so parallel sessions on different branches never collide.
+
+---
+
+## Vision
+
+Every Claude Code session starts exactly where you left off.
+
+## Mission
+
+Capture the minimum context needed to resume work, automatically, at the right moment.
+
+## Philosophy
+
+**The most recent state is the only state that matters.**
+
+Compaction is not loss — it's a checkpoint. ctx captures the minimum context needed to resume work, automatically, at the right moment. One snapshot per branch, always current, never accumulated. If it's in the code, git has it. If it's not, it shouldn't survive anyway.
 
 ---
 
@@ -333,12 +355,6 @@ ctx updates itself automatically in the background. Once every 24 hours it check
 ctx update        # update immediately
 ctx changelog     # see what changed
 ```
-
----
-
-## What ctx is NOT
-
-ctx is not a memory tool. It doesn't accumulate knowledge across sessions, index conversations, or build a searchable history. It solves one specific problem: **keeping the current session coherent when context gets compacted**. One project, one snapshot, always overwritten.
 
 ---
 
