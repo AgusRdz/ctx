@@ -43,6 +43,12 @@ func stderrColor() bool {
 	return stderrEnabled
 }
 
+// IsInteractive reports whether both stdin and stdout are connected to a
+// terminal — required for any TUI that reads keystrokes and renders.
+func IsInteractive() bool {
+	return enabledFor(os.Stdin) && enabledFor(os.Stdout)
+}
+
 func ansi(code, s string) string {
 	if !stdoutColor() {
 		return s

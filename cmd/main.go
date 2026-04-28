@@ -60,6 +60,8 @@ func main() {
 		err = cmdClear()
 	case "list":
 		err = cmdList()
+	case "prune":
+		err = cmdPrune()
 	case "config":
 		err = cmdConfig()
 	case "state":
@@ -361,6 +363,54 @@ func cmdClear() error {
 		}
 	}
 	fmt.Fprintln(os.Stderr, "ctx: snapshot cleared")
+	return nil
+}
+
+// cmdPrune launches the interactive prune picker.
+// Snapshots past the stale threshold are pre-selected; the user can toggle
+// any item, filter to stale-only, and commit deletions with a confirm step.
+func cmdPrune() error {
+	for _, arg := range os.Args[2:] {
+		switch arg {
+		case "--help", "-h":
+			fmt.Fprintln(os.Stderr, "Usage: ctx prune")
+			fmt.Fprintln(os.Stderr, "  Interactive picker for selecting snapshots to delete.")
+			fmt.Fprintln(os.Stderr, "  Stale snapshots are pre-selected.")
+			return nil
+		default:
+			return fmt.Errorf("ctx: unknown flag %q for prune", arg)
+		}
+	}
+
+	if !tui.IsInteractive() {
+		return fmt.Errorf("ctx: prune requires an interactive terminal — use `ctx clear --stale` for scripts")
+	}
+
+	infos, _, err := snapshot.List()
+	if err != nil {
+		return err
+	}
+	if len(infos) == 0 {
+		fmt.Fprintln(os.Stderr, "ctx: no snapshots to prune")
+		return nil
+	}
+
+	dir, _ := os.Getwd()
+	cfg, _ := config.EffectiveConfig(dir)
+	threshold := time.Duration(0)
+	if cfg != nil && cfg.Core.StaleAfterDays > 0 {
+		threshold = time.Duration(cfg.Core.StaleAfterDays) * 24 * time.Hour
+	}
+
+	res, err := tui.RunPrune(infos, threshold)
+	if err != nil {
+		return err
+	}
+	if len(res.Deleted) == 0 {
+		fmt.Fprintln(os.Stderr, "ctx: nothing deleted")
+		return nil
+	}
+	fmt.Fprintf(os.Stderr, "ctx: deleted %d snapshot(s)\n", len(res.Deleted))
 	return nil
 }
 
@@ -780,6 +830,7 @@ func printUsage() {
 	b.WriteString(row("ctx clear "+flag("--all"), "delete all branch snapshots for this project"))
 	b.WriteString(row("ctx clear "+flag("--stale")+" ["+flag("--yes")+"]", "preview / prune snapshots past the stale threshold"))
 	b.WriteString(row("ctx list", "list all projects with snapshots"))
+	b.WriteString(row("ctx prune", "interactive picker for deleting snapshots"))
 	b.WriteString("\n")
 
 	b.WriteString(section("Configuration") + "\n")
