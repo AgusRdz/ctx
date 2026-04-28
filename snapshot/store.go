@@ -140,6 +140,62 @@ func ClearAll(projectDir string) error {
 	return nil
 }
 
+// ClearStale deletes snapshots older than the given threshold.
+// Returns the list of removed snapshots. If a project's hash directory ends
+// up with no remaining branch snapshots, the directory and its path.txt are
+// removed too.
+func ClearStale(threshold time.Duration) ([]SnapshotInfo, error) {
+	infos, _, err := List()
+	if err != nil {
+		return nil, err
+	}
+	var removed []SnapshotInfo
+	for _, info := range infos {
+		if info.CapturedAt.IsZero() || time.Since(info.CapturedAt) < threshold {
+			continue
+		}
+		if err := Clear(info.ProjectDir, info.Branch); err != nil {
+			return removed, err
+		}
+		removed = append(removed, info)
+	}
+	// Best-effort cleanup of now-empty hash directories
+	dataDir := config.DataDir()
+	entries, err := os.ReadDir(dataDir)
+	if err == nil {
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+			hashDir := filepath.Join(dataDir, entry.Name())
+			if hasAnyBranch(hashDir) {
+				continue
+			}
+			_ = os.Remove(filepath.Join(hashDir, "path.txt"))
+			_ = os.Remove(hashDir)
+		}
+	}
+	return removed, nil
+}
+
+// hasAnyBranch reports whether hashDir still contains a branch subdirectory
+// with a snapshot.md inside.
+func hasAnyBranch(hashDir string) bool {
+	entries, err := os.ReadDir(hashDir)
+	if err != nil {
+		return false
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(hashDir, entry.Name(), "snapshot.md")); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
 // SnapshotInfo holds metadata about a stored snapshot.
 type SnapshotInfo struct {
 	ProjectDir string

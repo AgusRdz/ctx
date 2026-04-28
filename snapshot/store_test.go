@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/AgusRdz/ctx/config"
 )
@@ -276,6 +277,75 @@ func TestGoalFromSnapshot_EmptyContent(t *testing.T) {
 	got := goalFromSnapshot("")
 	if got != "unknown" {
 		t.Errorf("expected 'unknown' for empty content, got %q", got)
+	}
+}
+
+func TestClearStale_RemovesOldKeepsFresh(t *testing.T) {
+	oldDir := t.TempDir()
+	freshDir := t.TempDir()
+	t.Cleanup(func() {
+		cleanup(t, oldDir)
+		cleanup(t, freshDir)
+	})
+
+	if err := Write(oldDir, "main", "## Goal\nold work\n"); err != nil {
+		t.Fatalf("Write old: %v", err)
+	}
+	if err := Write(freshDir, "main", "## Goal\nfresh work\n"); err != nil {
+		t.Fatalf("Write fresh: %v", err)
+	}
+
+	// Backdate the old snapshot's mtime by 100 days.
+	oldPath := snapshotPathForBranch(oldDir, "main")
+	past := time.Now().Add(-100 * 24 * time.Hour)
+	if err := os.Chtimes(oldPath, past, past); err != nil {
+		t.Fatalf("Chtimes: %v", err)
+	}
+
+	removed, err := ClearStale(60 * 24 * time.Hour)
+	if err != nil {
+		t.Fatalf("ClearStale: %v", err)
+	}
+
+	// Filter to entries we created (other tests may share DataDir).
+	var ours []SnapshotInfo
+	for _, info := range removed {
+		if info.ProjectDir == oldDir || info.ProjectDir == freshDir {
+			ours = append(ours, info)
+		}
+	}
+	if len(ours) != 1 || ours[0].ProjectDir != oldDir {
+		t.Fatalf("expected only oldDir removed, got %+v", ours)
+	}
+
+	if got, _ := Read(oldDir, "main"); got != "" {
+		t.Errorf("expected old snapshot gone, got %q", got)
+	}
+	if got, _ := Read(freshDir, "main"); got == "" {
+		t.Errorf("expected fresh snapshot preserved")
+	}
+}
+
+func TestClearStale_CleansEmptyHashDir(t *testing.T) {
+	projectDir := t.TempDir()
+	t.Cleanup(func() { cleanup(t, projectDir) })
+
+	if err := Write(projectDir, "main", "## Goal\nold\n"); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+	oldPath := snapshotPathForBranch(projectDir, "main")
+	past := time.Now().Add(-100 * 24 * time.Hour)
+	if err := os.Chtimes(oldPath, past, past); err != nil {
+		t.Fatalf("Chtimes: %v", err)
+	}
+
+	if _, err := ClearStale(60 * 24 * time.Hour); err != nil {
+		t.Fatalf("ClearStale: %v", err)
+	}
+
+	hashDir := filepath.Join(config.DataDir(), ProjectHash(projectDir))
+	if _, err := os.Stat(hashDir); !os.IsNotExist(err) {
+		t.Errorf("expected hash dir removed, stat err = %v", err)
 	}
 }
 

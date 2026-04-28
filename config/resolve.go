@@ -72,6 +72,7 @@ func (s FieldSource) String() string {
 // ConfigSources tracks the source of each config field.
 type ConfigSources struct {
 	Debug                  FieldSource
+	StaleAfterDays         FieldSource
 	ProjectStateEnabled    FieldSource
 	ProjectStateGit        FieldSource
 	ProjectStateMaxDirty   FieldSource
@@ -101,6 +102,10 @@ func EffectiveConfigWithSources(projectRoot string) (*Config, *ConfigSources, er
 	}
 	if globalPartial.Core.ClaudeTimeoutSecs != nil {
 		cfg.Core.ClaudeTimeoutSecs = *globalPartial.Core.ClaudeTimeoutSecs
+	}
+	if globalPartial.Core.StaleAfterDays != nil {
+		cfg.Core.StaleAfterDays = *globalPartial.Core.StaleAfterDays
+		sources.StaleAfterDays = SourceGlobal
 	}
 	if globalPartial.ProjectState.Enabled != nil {
 		cfg.ProjectState.Enabled = *globalPartial.ProjectState.Enabled
@@ -159,6 +164,10 @@ func EffectiveConfigWithSources(projectRoot string) (*Config, *ConfigSources, er
 		}
 		if localPartial.Core.ClaudeTimeoutSecs != nil {
 			cfg.Core.ClaudeTimeoutSecs = *localPartial.Core.ClaudeTimeoutSecs
+		}
+		if localPartial.Core.StaleAfterDays != nil {
+			cfg.Core.StaleAfterDays = *localPartial.Core.StaleAfterDays
+			sources.StaleAfterDays = SourceLocal
 		}
 		if localPartial.ProjectState.Enabled != nil {
 			cfg.ProjectState.Enabled = *localPartial.ProjectState.Enabled

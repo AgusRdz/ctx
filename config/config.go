@@ -64,14 +64,16 @@ type TestsConfig struct {
 // CoreConfig holds core settings.
 type CoreConfig struct {
 	Debug             bool `yaml:"debug"`
-	ClaudeTimeoutSecs int  `yaml:"claude_timeout"` // seconds; 0 = use default (30)
+	ClaudeTimeoutSecs int  `yaml:"claude_timeout"`   // seconds; 0 = use default (30)
+	StaleAfterDays    int  `yaml:"stale_after_days"` // snapshots older than this are flagged stale; 0 disables
 }
 
 // DefaultConfig returns a Config with all defaults populated.
 func DefaultConfig() *Config {
 	return &Config{
 		Core: CoreConfig{
-			Debug: false,
+			Debug:          false,
+			StaleAfterDays: 60,
 		},
 		ProjectState: ProjectStateConfig{
 			Enabled:       true,
@@ -90,6 +92,7 @@ type partialConfig struct {
 	Core struct {
 		Debug             *bool `yaml:"debug"`
 		ClaudeTimeoutSecs *int  `yaml:"claude_timeout"`
+		StaleAfterDays    *int  `yaml:"stale_after_days"`
 	} `yaml:"core"`
 	ProjectState struct {
 		Enabled       *bool `yaml:"enabled"`
@@ -135,6 +138,9 @@ func applyPartial(base *Config, pc *partialConfig) *Config {
 	}
 	if pc.Core.ClaudeTimeoutSecs != nil {
 		result.Core.ClaudeTimeoutSecs = *pc.Core.ClaudeTimeoutSecs
+	}
+	if pc.Core.StaleAfterDays != nil {
+		result.Core.StaleAfterDays = *pc.Core.StaleAfterDays
 	}
 	if pc.ProjectState.Enabled != nil {
 		result.ProjectState.Enabled = *pc.ProjectState.Enabled

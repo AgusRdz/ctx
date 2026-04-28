@@ -324,19 +324,30 @@ func cmdShow() error {
 func cmdClear() error {
 	dir, _ := os.Getwd()
 	allBranches := false
+	stale := false
+	confirm := false
 
 	for _, arg := range os.Args[2:] {
 		switch arg {
 		case "--all":
 			allBranches = true
+		case "--stale":
+			stale = true
+		case "--yes", "-y":
+			confirm = true
 		case "--help", "-h":
-			fmt.Fprintln(os.Stderr, "Usage: ctx clear [--all]")
+			fmt.Fprintln(os.Stderr, "Usage: ctx clear [--all|--stale [--yes]]")
 			fmt.Fprintln(os.Stderr, "  (no flag)  Clear snapshot for current branch only")
 			fmt.Fprintln(os.Stderr, "  --all      Clear all branch snapshots for this project")
+			fmt.Fprintln(os.Stderr, "  --stale    Show snapshots past the stale threshold; --yes to delete")
 			return nil
 		default:
 			return fmt.Errorf("ctx: unknown flag %q for clear", arg)
 		}
+	}
+
+	if stale {
+		return cmdClearStale(dir, confirm)
 	}
 
 	if allBranches {
@@ -353,6 +364,69 @@ func cmdClear() error {
 	return nil
 }
 
+// cmdClearStale lists or deletes snapshots older than the configured threshold.
+// Without --yes it prints what would be removed; with --yes it deletes them.
+func cmdClearStale(projectDir string, confirm bool) error {
+	cfg, err := config.EffectiveConfig(projectDir)
+	if err != nil {
+		return err
+	}
+	days := cfg.Core.StaleAfterDays
+	if days <= 0 {
+		fmt.Fprintln(os.Stderr, "ctx: stale_after_days is 0 — staleness is disabled")
+		return nil
+	}
+	threshold := time.Duration(days) * 24 * time.Hour
+
+	infos, _, err := snapshot.List()
+	if err != nil {
+		return err
+	}
+	var stale []snapshot.SnapshotInfo
+	for _, info := range infos {
+		if info.CapturedAt.IsZero() || time.Since(info.CapturedAt) < threshold {
+			continue
+		}
+		stale = append(stale, info)
+	}
+
+	if len(stale) == 0 {
+		fmt.Fprintf(os.Stderr, "ctx: no snapshots older than %dd\n", days)
+		return nil
+	}
+
+	if !confirm {
+		fmt.Printf("Would remove %d snapshot(s) older than %dd:\n\n", len(stale), days)
+		for _, info := range stale {
+			printStaleEntry(info)
+		}
+		fmt.Println()
+		fmt.Println("Run with --yes to confirm.")
+		return nil
+	}
+
+	removed, err := snapshot.ClearStale(threshold)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(os.Stderr, "ctx: removed %d stale snapshot(s)\n", len(removed))
+	return nil
+}
+
+// printStaleEntry renders one row of the stale dry-run listing.
+func printStaleEntry(info snapshot.SnapshotInfo) {
+	branchLabel := ""
+	if info.Branch != "" && info.Branch != "_" {
+		branchLabel = fmt.Sprintf(" [%s]", info.Branch)
+	}
+	age := ""
+	if !info.CapturedAt.IsZero() {
+		d := time.Since(info.CapturedAt).Round(24 * time.Hour)
+		age = fmt.Sprintf("%dd ago", int(d.Hours()/24))
+	}
+	fmt.Printf("  %s%s   %s — %q\n", info.ProjectDir, branchLabel, age, info.Goal)
+}
+
 func cmdList() error {
 	infos, legacy, err := snapshot.List()
 	if err != nil {
@@ -362,20 +436,42 @@ func cmdList() error {
 		fmt.Fprintln(os.Stderr, "ctx: no snapshots found")
 		return nil
 	}
+
+	dir, _ := os.Getwd()
+	cfg, _ := config.EffectiveConfig(dir)
+	staleDays := 0
+	if cfg != nil {
+		staleDays = cfg.Core.StaleAfterDays
+	}
+	staleThreshold := time.Duration(staleDays) * 24 * time.Hour
+	staleCount := 0
+
 	for _, info := range infos {
 		age := ""
+		isStale := false
 		if !info.CapturedAt.IsZero() {
 			d := time.Since(info.CapturedAt).Round(time.Minute)
 			age = fmt.Sprintf(" (%s ago)", d)
+			if staleDays > 0 && d >= staleThreshold {
+				isStale = true
+				staleCount++
+			}
 		}
 		branchLabel := ""
 		if info.Branch != "" && info.Branch != "_" {
 			branchLabel = fmt.Sprintf(" [%s]", info.Branch)
 		}
-		fmt.Printf("%s%s\n  %s%s\n\n", info.ProjectDir, branchLabel, info.Goal, age)
+		staleMark := ""
+		if isStale {
+			staleMark = " [stale]"
+		}
+		fmt.Printf("%s%s%s\n  %s%s\n\n", info.ProjectDir, branchLabel, staleMark, info.Goal, age)
 	}
 	if legacy > 0 {
 		fmt.Fprintf(os.Stderr, "ctx: %d legacy snapshot(s) not shown — trigger a compaction to refresh them\n", legacy)
+	}
+	if staleCount > 0 {
+		fmt.Fprintf(os.Stderr, "ctx: %d snapshot(s) older than %dd. Run `ctx clear --stale` to prune.\n", staleCount, staleDays)
 	}
 	return nil
 }
@@ -407,8 +503,20 @@ func cmdConfig() error {
 			return setConfigField(local, dir, func(cfg *config.Config) {
 				cfg.Core.Debug = val == "true"
 			}, fmt.Sprintf("debug=%s", val))
+		case "--stale-after":
+			if i+1 >= len(args) {
+				return fmt.Errorf("ctx: --stale-after requires a number of days (0 disables)")
+			}
+			i++
+			n, err := strconv.Atoi(args[i])
+			if err != nil || n < 0 {
+				return fmt.Errorf("ctx: --stale-after value must be a non-negative integer")
+			}
+			return setConfigField(local, dir, func(cfg *config.Config) {
+				cfg.Core.StaleAfterDays = n
+			}, fmt.Sprintf("stale_after_days=%d", n))
 		case "--help", "-h":
-			fmt.Fprintln(os.Stderr, "Usage: ctx config [--global|--local] [--debug true|false]")
+			fmt.Fprintln(os.Stderr, "Usage: ctx config [--global|--local] [--debug true|false] [--stale-after N]")
 			return nil
 		default:
 			return fmt.Errorf("ctx: unknown flag %q for config", args[i])
@@ -497,6 +605,7 @@ func showEffectiveConfig(projectDir string) error {
 	}
 
 	printField("core.debug", effective.Core.Debug, sources.Debug)
+	printField("core.stale_after_days", effective.Core.StaleAfterDays, sources.StaleAfterDays)
 	printField("project_state.enabled", effective.ProjectState.Enabled, sources.ProjectStateEnabled)
 	printField("project_state.git", effective.ProjectState.Git, sources.ProjectStateGit)
 	printField("project_state.max_dirty_files", effective.ProjectState.MaxDirtyFiles, sources.ProjectStateMaxDirty)
@@ -608,6 +717,7 @@ func printUsage() {
 	b.WriteString(row("ctx state", "capture and print current project state"))
 	b.WriteString(row("ctx clear", "delete snapshot for current branch"))
 	b.WriteString(row("ctx clear "+flag("--all"), "delete all branch snapshots for this project"))
+	b.WriteString(row("ctx clear "+flag("--stale")+" ["+flag("--yes")+"]", "preview / prune snapshots past the stale threshold"))
 	b.WriteString(row("ctx list", "list all projects with snapshots"))
 	b.WriteString("\n")
 
@@ -615,6 +725,7 @@ func printUsage() {
 	b.WriteString(row("ctx config", "show effective configuration with sources"))
 	b.WriteString(row("ctx config "+flag("--global")+" | "+flag("--local"), "show a specific config file"))
 	b.WriteString(row("ctx config "+flag("--debug")+" true|false", "toggle verbose hook logging"))
+	b.WriteString(row("ctx config "+flag("--stale-after")+" N", "days before a snapshot is flagged stale (0 disables)"))
 	b.WriteString("\n")
 
 	b.WriteString(section("Diagnostics") + "\n")
