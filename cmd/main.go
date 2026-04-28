@@ -421,10 +421,28 @@ func printStaleEntry(info snapshot.SnapshotInfo) {
 	}
 	age := ""
 	if !info.CapturedAt.IsZero() {
-		d := time.Since(info.CapturedAt).Round(24 * time.Hour)
-		age = fmt.Sprintf("%dd ago", int(d.Hours()/24))
+		age = formatAge(time.Since(info.CapturedAt)) + " ago"
 	}
 	fmt.Printf("  %s%s   %s — %q\n", info.ProjectDir, branchLabel, age, info.Goal)
+}
+
+// formatAge renders a duration in human-friendly units:
+//
+//	>= 1d   → "Nd"
+//	>= 1h   → "Nh"
+//	>= 1m   → "Nm"
+//	else    → "<1m"
+func formatAge(d time.Duration) string {
+	if d < time.Minute {
+		return "<1m"
+	}
+	if d < time.Hour {
+		return fmt.Sprintf("%dm", int(d.Minutes()))
+	}
+	if d < 24*time.Hour {
+		return fmt.Sprintf("%dh", int(d.Hours()))
+	}
+	return fmt.Sprintf("%dd", int(d.Hours()/24))
 }
 
 func cmdList() error {
@@ -450,8 +468,8 @@ func cmdList() error {
 		age := ""
 		isStale := false
 		if !info.CapturedAt.IsZero() {
-			d := time.Since(info.CapturedAt).Round(time.Minute)
-			age = fmt.Sprintf(" (%s ago)", d)
+			d := time.Since(info.CapturedAt)
+			age = fmt.Sprintf(" (%s ago)", formatAge(d))
 			if staleDays > 0 && d >= staleThreshold {
 				isStale = true
 				staleCount++
