@@ -426,6 +426,25 @@ func printStaleEntry(info snapshot.SnapshotInfo) {
 	fmt.Printf("  %s%s   %s — %q\n", info.ProjectDir, branchLabel, age, info.Goal)
 }
 
+// repoDisplayName returns the basename of projectDir, trimming a trailing
+// separator. Falls back to the full path if the basename is empty.
+func repoDisplayName(projectDir string) string {
+	name := filepath.Base(strings.TrimRight(projectDir, `/\`))
+	if name == "" || name == "." {
+		return projectDir
+	}
+	return name
+}
+
+// branchLabelFor renders a branch name for the grouped list. The non-git
+// sentinel "_" is rendered as a placeholder so column alignment is preserved.
+func branchLabelFor(branch string) string {
+	if branch == "" || branch == "_" {
+		return "(no branch)"
+	}
+	return "[" + branch + "]"
+}
+
 // formatAge renders a duration in human-friendly units:
 //
 //	>= 1d   → "Nd"
@@ -464,27 +483,51 @@ func cmdList() error {
 	staleThreshold := time.Duration(staleDays) * 24 * time.Hour
 	staleCount := 0
 
+	// Group snapshots by project, preserving List()'s recency-desc order
+	// (the first time we see a project is its most-recent capture).
+	groups := map[string][]snapshot.SnapshotInfo{}
+	var order []string
 	for _, info := range infos {
-		age := ""
-		isStale := false
-		if !info.CapturedAt.IsZero() {
-			d := time.Since(info.CapturedAt)
-			age = fmt.Sprintf(" (%s ago)", formatAge(d))
-			if staleDays > 0 && d >= staleThreshold {
-				isStale = true
-				staleCount++
+		if _, seen := groups[info.ProjectDir]; !seen {
+			order = append(order, info.ProjectDir)
+		}
+		groups[info.ProjectDir] = append(groups[info.ProjectDir], info)
+	}
+
+	for i, projectDir := range order {
+		entries := groups[projectDir]
+		fmt.Println(repoDisplayName(projectDir))
+
+		// Width of the widest branch label for column alignment within the group
+		maxBranchW := 0
+		for _, info := range entries {
+			if w := len(branchLabelFor(info.Branch)); w > maxBranchW {
+				maxBranchW = w
 			}
 		}
-		branchLabel := ""
-		if info.Branch != "" && info.Branch != "_" {
-			branchLabel = fmt.Sprintf(" [%s]", info.Branch)
+
+		for _, info := range entries {
+			age := ""
+			isStale := false
+			if !info.CapturedAt.IsZero() {
+				d := time.Since(info.CapturedAt)
+				age = formatAge(d) + " ago"
+				if staleDays > 0 && d >= staleThreshold {
+					isStale = true
+					staleCount++
+				}
+			}
+			staleMark := ""
+			if isStale {
+				staleMark = " [stale]"
+			}
+			fmt.Printf("  %-*s  %s — %s%s\n", maxBranchW, branchLabelFor(info.Branch), age, info.Goal, staleMark)
 		}
-		staleMark := ""
-		if isStale {
-			staleMark = " [stale]"
+		if i < len(order)-1 {
+			fmt.Println()
 		}
-		fmt.Printf("%s%s%s\n  %s%s\n\n", info.ProjectDir, branchLabel, staleMark, info.Goal, age)
 	}
+
 	if legacy > 0 {
 		fmt.Fprintf(os.Stderr, "ctx: %d legacy snapshot(s) not shown — trigger a compaction to refresh them\n", legacy)
 	}
