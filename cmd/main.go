@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -587,6 +588,39 @@ func cmdList() error {
 	return nil
 }
 
+// openInEditor opens path in the user's preferred editor.
+// Resolution order: config.core.editor → $VISUAL → $EDITOR → auto-detect (code, vim, nano, notepad).
+func openInEditor(path string) error {
+	dir, _ := os.Getwd()
+	cfg, _ := config.EffectiveConfig(dir)
+	editor := cfg.Core.Editor
+	if editor == "" {
+		editor = os.Getenv("VISUAL")
+	}
+	if editor == "" {
+		editor = os.Getenv("EDITOR")
+	}
+	if editor == "" {
+		for _, candidate := range []string{"code", "vim", "nano", "notepad"} {
+			if _, err := exec.LookPath(candidate); err == nil {
+				editor = candidate
+				break
+			}
+		}
+	}
+	if editor == "" {
+		return fmt.Errorf("ctx: no editor found — set $EDITOR or run: ctx config --editor <vim|code|...>")
+	}
+	cmd := exec.Command(editor, path)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("ctx: editor exited with error: %w", err)
+	}
+	return nil
+}
+
 func cmdConfig() error {
 	args := os.Args[2:]
 	dir, _ := os.Getwd()
@@ -594,6 +628,7 @@ func cmdConfig() error {
 	local := false
 	showGlobal := false
 	showLocal := false
+	editFile := false
 
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
@@ -602,6 +637,17 @@ func cmdConfig() error {
 			showLocal = true
 		case "--global":
 			showGlobal = true
+		case "--edit":
+			editFile = true
+		case "--editor":
+			if i+1 >= len(args) {
+				return fmt.Errorf("ctx: --editor requires a value (e.g. vim, code, nano)")
+			}
+			i++
+			val := args[i]
+			return setConfigField(local, dir, func(cfg *config.Config) {
+				cfg.Core.Editor = val
+			}, fmt.Sprintf("editor=%s", val))
 		case "--debug":
 			if i+1 >= len(args) {
 				return fmt.Errorf("ctx: --debug requires true or false")
@@ -627,11 +673,24 @@ func cmdConfig() error {
 				cfg.Core.StaleAfterDays = n
 			}, fmt.Sprintf("stale_after_days=%d", n))
 		case "--help", "-h":
-			fmt.Fprintln(os.Stderr, "Usage: ctx config [--global|--local] [--debug true|false] [--stale-after N]")
+			fmt.Fprintln(os.Stderr, "Usage: ctx config [--global|--local] [--edit] [--editor <vim|code|...>] [--debug true|false] [--stale-after N]")
 			return nil
 		default:
 			return fmt.Errorf("ctx: unknown flag %q for config", args[i])
 		}
+	}
+
+	if editFile {
+		var path string
+		if local {
+			path = config.ProjectConfigPath(dir)
+			if _, err := os.Stat(path); os.IsNotExist(err) {
+				return fmt.Errorf("ctx: no local config — run 'ctx init --local' first")
+			}
+		} else {
+			path = config.GlobalConfigPath()
+		}
+		return openInEditor(path)
 	}
 
 	if showGlobal {
@@ -717,6 +776,11 @@ func showEffectiveConfig(projectDir string) error {
 
 	printField("core.debug", effective.Core.Debug, sources.Debug)
 	printField("core.stale_after_days", effective.Core.StaleAfterDays, sources.StaleAfterDays)
+	editorDisplay := effective.Core.Editor
+	if editorDisplay == "" {
+		editorDisplay = "(auto-detect)"
+	}
+	printField("core.editor", editorDisplay, sources.Editor)
 	printField("snapshot.todos", effective.Snapshot.Todos, sources.SnapshotTodos)
 	printField("snapshot.max_todos", effective.Snapshot.MaxTodos, sources.SnapshotMaxTodos)
 	printField("project_state.enabled", effective.ProjectState.Enabled, sources.ProjectStateEnabled)

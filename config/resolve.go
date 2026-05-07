@@ -73,6 +73,7 @@ func (s FieldSource) String() string {
 type ConfigSources struct {
 	Debug                  FieldSource
 	StaleAfterDays         FieldSource
+	Editor                 FieldSource
 	SnapshotTodos          FieldSource
 	SnapshotMaxTodos       FieldSource
 	ProjectStateEnabled    FieldSource
@@ -108,6 +109,10 @@ func EffectiveConfigWithSources(projectRoot string) (*Config, *ConfigSources, er
 	if globalPartial.Core.StaleAfterDays != nil {
 		cfg.Core.StaleAfterDays = *globalPartial.Core.StaleAfterDays
 		sources.StaleAfterDays = SourceGlobal
+	}
+	if globalPartial.Core.Editor != nil {
+		cfg.Core.Editor = *globalPartial.Core.Editor
+		sources.Editor = SourceGlobal
 	}
 	if globalPartial.Snapshot.Todos != nil {
 		cfg.Snapshot.Todos = *globalPartial.Snapshot.Todos
@@ -178,6 +183,10 @@ func EffectiveConfigWithSources(projectRoot string) (*Config, *ConfigSources, er
 		if localPartial.Core.StaleAfterDays != nil {
 			cfg.Core.StaleAfterDays = *localPartial.Core.StaleAfterDays
 			sources.StaleAfterDays = SourceLocal
+		}
+		if localPartial.Core.Editor != nil {
+			cfg.Core.Editor = *localPartial.Core.Editor
+			sources.Editor = SourceLocal
 		}
 		if localPartial.Snapshot.Todos != nil {
 			cfg.Snapshot.Todos = *localPartial.Snapshot.Todos

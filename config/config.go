@@ -64,9 +64,10 @@ type TestsConfig struct {
 
 // CoreConfig holds core settings.
 type CoreConfig struct {
-	Debug             bool `yaml:"debug"`
-	ClaudeTimeoutSecs int  `yaml:"claude_timeout"`   // seconds; 0 = use default (30)
-	StaleAfterDays    int  `yaml:"stale_after_days"` // snapshots older than this are flagged stale; 0 disables
+	Debug             bool   `yaml:"debug"`
+	ClaudeTimeoutSecs int    `yaml:"claude_timeout"`   // seconds; 0 = use default (30)
+	StaleAfterDays    int    `yaml:"stale_after_days"` // snapshots older than this are flagged stale; 0 disables
+	Editor            string `yaml:"editor"`           // preferred editor; falls back to $VISUAL, $EDITOR, auto-detect
 }
 
 // SnapshotConfig controls what optional sections appear in the generated snapshot.
@@ -101,9 +102,10 @@ func DefaultConfig() *Config {
 // Pointer types allow distinguishing "explicitly set to false/0" from "not present".
 type partialConfig struct {
 	Core struct {
-		Debug             *bool `yaml:"debug"`
-		ClaudeTimeoutSecs *int  `yaml:"claude_timeout"`
-		StaleAfterDays    *int  `yaml:"stale_after_days"`
+		Debug             *bool   `yaml:"debug"`
+		ClaudeTimeoutSecs *int    `yaml:"claude_timeout"`
+		StaleAfterDays    *int    `yaml:"stale_after_days"`
+		Editor            *string `yaml:"editor"`
 	} `yaml:"core"`
 	Snapshot struct {
 		Todos    *bool `yaml:"todos"`
@@ -156,6 +158,9 @@ func applyPartial(base *Config, pc *partialConfig) *Config {
 	}
 	if pc.Core.StaleAfterDays != nil {
 		result.Core.StaleAfterDays = *pc.Core.StaleAfterDays
+	}
+	if pc.Core.Editor != nil {
+		result.Core.Editor = *pc.Core.Editor
 	}
 	if pc.Snapshot.Todos != nil {
 		result.Snapshot.Todos = *pc.Snapshot.Todos
