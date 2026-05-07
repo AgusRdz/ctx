@@ -717,6 +717,8 @@ func showEffectiveConfig(projectDir string) error {
 
 	printField("core.debug", effective.Core.Debug, sources.Debug)
 	printField("core.stale_after_days", effective.Core.StaleAfterDays, sources.StaleAfterDays)
+	printField("snapshot.todos", effective.Snapshot.Todos, sources.SnapshotTodos)
+	printField("snapshot.max_todos", effective.Snapshot.MaxTodos, sources.SnapshotMaxTodos)
 	printField("project_state.enabled", effective.ProjectState.Enabled, sources.ProjectStateEnabled)
 	printField("project_state.git", effective.ProjectState.Git, sources.ProjectStateGit)
 	printField("project_state.max_dirty_files", effective.ProjectState.MaxDirtyFiles, sources.ProjectStateMaxDirty)
