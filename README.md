@@ -54,7 +54,7 @@ Compaction is not loss — it's a checkpoint. ctx captures the minimum context n
 └──────────────────────────────────────────────────────────────┘
 ```
 
-The snapshot is a structured markdown document with four fields:
+The snapshot is a structured markdown document with these fields:
 
 | Field | What it captures |
 |-------|-----------------|
@@ -62,6 +62,7 @@ The snapshot is a structured markdown document with four fields:
 | **Decisions** | Technical choices already made this session |
 | **In Progress** | Files being modified |
 | **Next** | What to do when context resumes |
+| **Todos** | Pending tasks not yet started (optional, opt-in via config) |
 
 ---
 
@@ -187,6 +188,10 @@ ctx uses two config layers that merge field-by-field. Local values win over glob
 core:
   debug: false
   claude_timeout: 30     # seconds; default 30
+
+snapshot:
+  todos: false           # include a ## Todos checklist in the snapshot
+  max_todos: 5           # max items in the checklist
 ```
 
 **Local config** — `{project}/.ctx/config.yml` (optional, project-level overrides)
@@ -199,7 +204,7 @@ ctx init --local
 
 `.ctx/` is automatically added to `.gitignore` — local config is a developer preference, not a team setting.
 
-**Project state config** — controls what ctx captures at compaction time:
+**Project state config** — at compaction time, ctx can also run a live health check of your project and append the results to the snapshot: which files are dirty, whether typecheck passes, whether tests pass. Claude resumes knowing not just *what* you were building but *whether the code was broken* when you left off.
 
 ```yaml
 project_state:
@@ -315,7 +320,13 @@ Building the authentication middleware
 
 ## Next
 Add token refresh endpoint and write integration tests
+
+## Todos
+- [ ] Write integration tests for token refresh
+- [ ] Update API docs
 ```
+
+> The `## Todos` section only appears when `snapshot.todos: true` is set in config.
 
 Snapshots are stored per branch:
 - Linux/macOS: `~/.local/share/ctx/{project-hash}/{branch}/snapshot.md`

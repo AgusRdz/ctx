@@ -13,7 +13,7 @@ func TestFormatSnapshot_AllSections(t *testing.T) {
 		Next:       "Add unit tests for auth middleware",
 	}
 
-	result := FormatSnapshot(data)
+	result := FormatSnapshot(data, RenderOptions{})
 
 	// Verify all four section headers are present
 	sections := []string{"# Session Context", "## Goal", "## Decisions", "## In Progress", "## Next"}
@@ -49,7 +49,7 @@ func TestFormatSnapshot_SectionOrder(t *testing.T) {
 		Next:       "next-text",
 	}
 
-	result := FormatSnapshot(data)
+	result := FormatSnapshot(data, RenderOptions{})
 
 	goalIdx := strings.Index(result, "## Goal")
 	decisionsIdx := strings.Index(result, "## Decisions")
@@ -69,7 +69,7 @@ func TestFormatSnapshot_EmptyDecisions(t *testing.T) {
 		Next:       "Next step",
 	}
 
-	result := FormatSnapshot(data)
+	result := FormatSnapshot(data, RenderOptions{})
 
 	// Decisions section should still exist but have no list items
 	if !strings.Contains(result, "## Decisions\n") {
@@ -99,7 +99,7 @@ func TestFormatSnapshot_NilDecisions(t *testing.T) {
 		Next:       "Continue",
 	}
 
-	result := FormatSnapshot(data)
+	result := FormatSnapshot(data, RenderOptions{})
 
 	if !strings.Contains(result, "## Decisions\n") {
 		t.Error("decisions section header missing with nil decisions")
@@ -117,7 +117,7 @@ func TestFormatSnapshot_EndsWithNewline(t *testing.T) {
 		Next:       "Next",
 	}
 
-	result := FormatSnapshot(data)
+	result := FormatSnapshot(data, RenderOptions{})
 
 	if !strings.HasSuffix(result, "\n") {
 		t.Error("formatted snapshot should end with a newline")
@@ -131,7 +131,7 @@ func TestGenerateFallback_ValidMarkdown(t *testing.T) {
 		ProjectMD:  "Test project",
 	}
 
-	result := GenerateFallback(ctx)
+	result := GenerateFallback(ctx, RenderOptions{})
 
 	// Should contain a goal extracted from ProjectMD
 	if !strings.Contains(result, "Test project") {
@@ -164,7 +164,7 @@ func TestInferGoal_NoCommitsNoMD(t *testing.T) {
 		ProjectDir: "/tmp/myproject",
 	}
 
-	result := GenerateFallback(ctx)
+	result := GenerateFallback(ctx, RenderOptions{})
 
 	if !strings.Contains(result, "myproject") {
 		t.Errorf("expected project dir name in goal, got:\n%s", result)
@@ -182,7 +182,7 @@ func TestInferGoal_NoCommitsWithMD(t *testing.T) {
 		ProjectDir: "/tmp/myproject",
 	}
 
-	result := GenerateFallback(ctx)
+	result := GenerateFallback(ctx, RenderOptions{})
 
 	if !strings.Contains(result, "A CLI tool for doing things.") {
 		t.Errorf("expected CLAUDE.md description as goal, got:\n%s", result)
@@ -197,11 +197,54 @@ func TestInferGoal_CommitsNoMD(t *testing.T) {
 		ProjectDir: "/tmp/myproject",
 	}
 
-	result := GenerateFallback(ctx)
+	result := GenerateFallback(ctx, RenderOptions{})
 
 	if !strings.Contains(result, "feat: add login command") {
 		t.Errorf("expected latest commit in goal, got:\n%s", result)
 	}
+}
+
+func TestFormatSnapshot_Todos(t *testing.T) {
+	data := SnapshotData{
+		Goal:      "Some goal",
+		Next:      "Next step",
+		Todos:     []string{"Write tests", "Update docs", "Open PR"},
+	}
+
+	t.Run("hidden when ShowTodos=false", func(t *testing.T) {
+		result := FormatSnapshot(data, RenderOptions{ShowTodos: false})
+		if strings.Contains(result, "## Todos") {
+			t.Error("Todos section should not appear when ShowTodos=false")
+		}
+	})
+
+	t.Run("rendered as checklist when ShowTodos=true", func(t *testing.T) {
+		result := FormatSnapshot(data, RenderOptions{ShowTodos: true})
+		if !strings.Contains(result, "## Todos") {
+			t.Error("Todos section missing when ShowTodos=true")
+		}
+		if !strings.Contains(result, "- [ ] Write tests") {
+			t.Error("first todo item missing or not formatted as checklist")
+		}
+		if !strings.Contains(result, "- [ ] Update docs") {
+			t.Error("second todo item missing")
+		}
+	})
+
+	t.Run("MaxTodos caps the list", func(t *testing.T) {
+		result := FormatSnapshot(data, RenderOptions{ShowTodos: true, MaxTodos: 2})
+		if strings.Contains(result, "Open PR") {
+			t.Error("third item should be capped by MaxTodos=2")
+		}
+	})
+
+	t.Run("empty todos slice hides section even when ShowTodos=true", func(t *testing.T) {
+		empty := SnapshotData{Goal: "g", Next: "n", Todos: []string{}}
+		result := FormatSnapshot(empty, RenderOptions{ShowTodos: true})
+		if strings.Contains(result, "## Todos") {
+			t.Error("Todos section should not appear with empty slice")
+		}
+	})
 }
 
 func TestStripCodeFences(t *testing.T) {
@@ -257,7 +300,7 @@ func TestGenerateFallback_EmptyDiffStat(t *testing.T) {
 		ProjectDir: "/tmp/test",
 	}
 
-	result := GenerateFallback(ctx)
+	result := GenerateFallback(ctx, RenderOptions{})
 
 	// Should still produce valid markdown even with empty diff
 	if !strings.Contains(result, "## In Progress\n") {

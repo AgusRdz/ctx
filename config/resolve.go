@@ -73,6 +73,8 @@ func (s FieldSource) String() string {
 type ConfigSources struct {
 	Debug                  FieldSource
 	StaleAfterDays         FieldSource
+	SnapshotTodos          FieldSource
+	SnapshotMaxTodos       FieldSource
 	ProjectStateEnabled    FieldSource
 	ProjectStateGit        FieldSource
 	ProjectStateMaxDirty   FieldSource
@@ -106,6 +108,14 @@ func EffectiveConfigWithSources(projectRoot string) (*Config, *ConfigSources, er
 	if globalPartial.Core.StaleAfterDays != nil {
 		cfg.Core.StaleAfterDays = *globalPartial.Core.StaleAfterDays
 		sources.StaleAfterDays = SourceGlobal
+	}
+	if globalPartial.Snapshot.Todos != nil {
+		cfg.Snapshot.Todos = *globalPartial.Snapshot.Todos
+		sources.SnapshotTodos = SourceGlobal
+	}
+	if globalPartial.Snapshot.MaxTodos != nil {
+		cfg.Snapshot.MaxTodos = *globalPartial.Snapshot.MaxTodos
+		sources.SnapshotMaxTodos = SourceGlobal
 	}
 	if globalPartial.ProjectState.Enabled != nil {
 		cfg.ProjectState.Enabled = *globalPartial.ProjectState.Enabled
@@ -168,6 +178,14 @@ func EffectiveConfigWithSources(projectRoot string) (*Config, *ConfigSources, er
 		if localPartial.Core.StaleAfterDays != nil {
 			cfg.Core.StaleAfterDays = *localPartial.Core.StaleAfterDays
 			sources.StaleAfterDays = SourceLocal
+		}
+		if localPartial.Snapshot.Todos != nil {
+			cfg.Snapshot.Todos = *localPartial.Snapshot.Todos
+			sources.SnapshotTodos = SourceLocal
+		}
+		if localPartial.Snapshot.MaxTodos != nil {
+			cfg.Snapshot.MaxTodos = *localPartial.Snapshot.MaxTodos
+			sources.SnapshotMaxTodos = SourceLocal
 		}
 		if localPartial.ProjectState.Enabled != nil {
 			cfg.ProjectState.Enabled = *localPartial.ProjectState.Enabled

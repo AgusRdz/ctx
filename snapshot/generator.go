@@ -32,7 +32,8 @@ Respond with exactly this JSON:
   "goal": "one line describing the session objective",
   "decisions": ["relevant technical decision", "..."],
   "in_progress": "what was left unfinished",
-  "next": "what to do first when resuming"
+  "next": "what to do first when resuming",
+  "todos": ["pending task not yet started", "..."]
 }`
 
 // SnapshotData represents the structured snapshot content.
@@ -41,12 +42,19 @@ type SnapshotData struct {
 	Decisions  []string  `json:"decisions"`
 	InProgress string    `json:"in_progress"`
 	Next       string    `json:"next"`
+	Todos      []string  `json:"todos"`
 	CapturedAt time.Time `json:"-"`
+}
+
+// RenderOptions controls which optional sections appear in the formatted snapshot.
+type RenderOptions struct {
+	ShowTodos bool
+	MaxTodos  int // 0 = use default (5)
 }
 
 // Generate calls claude -p to produce a semantic snapshot from collected context
 // and transcript lines. Returns formatted markdown.
-func Generate(ctx Context, transcriptLines string, timeout time.Duration) (string, error) {
+func Generate(ctx Context, transcriptLines string, timeout time.Duration, opts RenderOptions) (string, error) {
 	prompt := fmt.Sprintf(promptTemplate, ctx.DiffStat, ctx.ProjectMD, transcriptLines)
 
 	cmdCtx, cancel := context.WithTimeout(context.Background(), timeout)
@@ -74,11 +82,11 @@ func Generate(ctx Context, transcriptLines string, timeout time.Duration) (strin
 	}
 
 	data.CapturedAt = time.Now().UTC()
-	return FormatSnapshot(data), nil
+	return FormatSnapshot(data, opts), nil
 }
 
 // GenerateFallback creates a deterministic snapshot without calling claude -p.
-func GenerateFallback(ctx Context) string {
+func GenerateFallback(ctx Context, opts RenderOptions) string {
 	// Filter git warnings from DiffStat
 	diffStat := filterGitWarnings(ctx.DiffStat)
 
@@ -110,7 +118,7 @@ func GenerateFallback(ctx Context) string {
 		Next:       "Review modified files and continue",
 		CapturedAt: time.Now().UTC(),
 	}
-	return FormatSnapshot(data)
+	return FormatSnapshot(data, opts)
 }
 
 // filterGitWarnings removes git warning lines from output.
@@ -216,8 +224,7 @@ func filterEnv(env []string, key string) []string {
 }
 
 // FormatSnapshot renders SnapshotData as structured markdown within the token budget.
-func FormatSnapshot(data SnapshotData) string {
-	// Enforce field-level token budget
+func FormatSnapshot(data SnapshotData, opts RenderOptions) string {
 	goal := truncateField(data.Goal, 120)
 
 	decisions := data.Decisions
@@ -231,6 +238,11 @@ func FormatSnapshot(data SnapshotData) string {
 	captured := data.CapturedAt
 	if captured.IsZero() {
 		captured = time.Now().UTC()
+	}
+
+	maxTodos := opts.MaxTodos
+	if maxTodos <= 0 {
+		maxTodos = 5
 	}
 
 	var b strings.Builder
@@ -249,6 +261,18 @@ func FormatSnapshot(data SnapshotData) string {
 	b.WriteString("\n\n## Next\n")
 	b.WriteString(next)
 	b.WriteString("\n")
+	if opts.ShowTodos && len(data.Todos) > 0 {
+		todos := data.Todos
+		if len(todos) > maxTodos {
+			todos = todos[:maxTodos]
+		}
+		b.WriteString("\n## Todos\n")
+		for _, item := range todos {
+			b.WriteString("- [ ] ")
+			b.WriteString(truncateField(item, 120))
+			b.WriteString("\n")
+		}
+	}
 	return b.String()
 }
 

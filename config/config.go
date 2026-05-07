@@ -33,6 +33,7 @@ func LogFile() string {
 // Config holds ctx runtime configuration.
 type Config struct {
 	Core         CoreConfig         `yaml:"core"`
+	Snapshot     SnapshotConfig     `yaml:"snapshot"`
 	ProjectState ProjectStateConfig `yaml:"project_state"`
 }
 
@@ -68,12 +69,22 @@ type CoreConfig struct {
 	StaleAfterDays    int  `yaml:"stale_after_days"` // snapshots older than this are flagged stale; 0 disables
 }
 
+// SnapshotConfig controls what optional sections appear in the generated snapshot.
+type SnapshotConfig struct {
+	Todos    bool `yaml:"todos"`     // include a ## Todos checklist section
+	MaxTodos int  `yaml:"max_todos"` // max items in the checklist; 0 = use default (5)
+}
+
 // DefaultConfig returns a Config with all defaults populated.
 func DefaultConfig() *Config {
 	return &Config{
 		Core: CoreConfig{
 			Debug:          false,
 			StaleAfterDays: 60,
+		},
+		Snapshot: SnapshotConfig{
+			Todos:    false,
+			MaxTodos: 5,
 		},
 		ProjectState: ProjectStateConfig{
 			Enabled:       true,
@@ -94,6 +105,10 @@ type partialConfig struct {
 		ClaudeTimeoutSecs *int  `yaml:"claude_timeout"`
 		StaleAfterDays    *int  `yaml:"stale_after_days"`
 	} `yaml:"core"`
+	Snapshot struct {
+		Todos    *bool `yaml:"todos"`
+		MaxTodos *int  `yaml:"max_todos"`
+	} `yaml:"snapshot"`
 	ProjectState struct {
 		Enabled       *bool `yaml:"enabled"`
 		Git           *bool `yaml:"git"`
@@ -141,6 +156,12 @@ func applyPartial(base *Config, pc *partialConfig) *Config {
 	}
 	if pc.Core.StaleAfterDays != nil {
 		result.Core.StaleAfterDays = *pc.Core.StaleAfterDays
+	}
+	if pc.Snapshot.Todos != nil {
+		result.Snapshot.Todos = *pc.Snapshot.Todos
+	}
+	if pc.Snapshot.MaxTodos != nil {
+		result.Snapshot.MaxTodos = *pc.Snapshot.MaxTodos
 	}
 	if pc.ProjectState.Enabled != nil {
 		result.ProjectState.Enabled = *pc.ProjectState.Enabled

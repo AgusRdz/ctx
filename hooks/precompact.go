@@ -67,10 +67,14 @@ func RunPreCompact() error {
 	// Generate snapshot via claude -p, with fallback
 	cfg, _ := config.EffectiveConfig(projectDir)
 	timeout := config.ClaudeTimeout(cfg.Core.ClaudeTimeoutSecs)
-	content, err := snapshot.Generate(ctx, transcriptLines, timeout)
+	renderOpts := snapshot.RenderOptions{
+		ShowTodos: cfg.Snapshot.Todos,
+		MaxTodos:  cfg.Snapshot.MaxTodos,
+	}
+	content, err := snapshot.Generate(ctx, transcriptLines, timeout, renderOpts)
 	if err != nil {
 		logging.Log("precompact | WARNING: %v, using fallback", err)
-		content = snapshot.GenerateFallback(ctx)
+		content = snapshot.GenerateFallback(ctx, renderOpts)
 	}
 	logging.Debug("precompact | snapshot_bytes=%d", len(content))
 
