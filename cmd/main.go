@@ -690,6 +690,10 @@ func cmdConfig() error {
 		} else {
 			path = config.GlobalConfigPath()
 		}
+		// Re-save before opening so any fields added in newer versions are present in the file.
+		if cfg, err := config.LoadFull(path); err == nil {
+			_ = config.Save(path, cfg)
+		}
 		return openInEditor(path)
 	}
 
