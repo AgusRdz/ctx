@@ -2,6 +2,16 @@
 
 All notable changes to ctx are documented here.
 
+## [1.7.0] - 2026-05-20
+
+### Features
+- Deterministic snapshot by default — no `claude -p` calls, no billing impact. Set `core.llm_enabled: true` to opt back in to semantic LLM snapshots.
+([3d68739](https://github.com/AgusRdz/ctx/commit/3d68739316bb3053293ce9395bd44b9d7a98310c))
+
+### Documentation
+- Update README to document `core.llm_enabled` opt-in and billing note
+([6d04a91](https://github.com/AgusRdz/ctx/commit/6d04a91e7008093d1c223a563d80be0c704d0ced))
+
 ## [1.1.4] - 2026-03-20
 
 ### Features
