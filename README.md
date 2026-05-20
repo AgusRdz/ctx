@@ -38,7 +38,7 @@ Compaction is not loss — it's a checkpoint. ctx captures the minimum context n
 │       │                                                      │
 │       ▼                                                      │
 │  PreCompact hook → ctx reads transcript + git state          │
-│                  → calls claude -p to extract semantics      │
+│                  → builds snapshot (deterministic by default)│
 │                  → writes snapshot (scoped to branch)        │
 │                                                              │
 │  PostCompact hook → ctx reads the snapshot just written      │
@@ -187,12 +187,17 @@ ctx uses two config layers that merge field-by-field. Local values win over glob
 ```yaml
 core:
   debug: false
-  claude_timeout: 30     # seconds; default 30
+  llm_enabled: false     # call claude -p for semantic snapshots (opt-in; see note below)
+  claude_timeout: 30     # seconds; timeout for claude -p when llm_enabled is true
 
 snapshot:
   todos: false           # include a ## Todos checklist in the snapshot
   max_todos: 5           # max items in the checklist
 ```
+
+> **Billing note:** By default ctx uses a fully deterministic snapshot — no LLM calls, no cost.
+> Set `llm_enabled: true` to enable semantic goal and decision extraction via `claude -p`.
+> This produces richer snapshots but draws from your Claude Code Agent SDK credit pool.
 
 **Local config** — `{project}/.ctx/config.yml` (optional, project-level overrides)
 
@@ -292,6 +297,7 @@ ctx config
 effective configuration
 ───────────────────────────────────────
 core.debug              false      [default]
+core.llm_enabled        false      [default]
 
 global:  ~/.config/ctx/config.yml
 local:   /home/agus/projects/myapp/.ctx/config.yml
