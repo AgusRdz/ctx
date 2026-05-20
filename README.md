@@ -187,7 +187,7 @@ ctx uses two config layers that merge field-by-field. Local values win over glob
 ```yaml
 core:
   debug: false
-  llm_enabled: false     # call claude -p for semantic snapshots (opt-in; see note below)
+  llm_enabled: false     # use deterministic snapshot by default; set true for semantic LLM extraction
   claude_timeout: 30     # seconds; timeout for claude -p when llm_enabled is true
 
 snapshot:
@@ -195,9 +195,10 @@ snapshot:
   max_todos: 5           # max items in the checklist
 ```
 
-> **Billing note:** By default ctx uses a fully deterministic snapshot — no LLM calls, no cost.
-> Set `llm_enabled: true` to enable semantic goal and decision extraction via `claude -p`.
-> This produces richer snapshots but draws from your Claude Code Agent SDK credit pool.
+> ctx is designed to have zero footprint by default. The deterministic snapshot derives goal,
+> decisions, and in-progress state directly from git — no external calls, no latency, no side effects.
+> Set `llm_enabled: true` if you want richer semantic extraction via `claude -p` (infers intent
+> from the session transcript rather than just commit messages).
 
 **Local config** — `{project}/.ctx/config.yml` (optional, project-level overrides)
 
