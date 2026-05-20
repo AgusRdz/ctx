@@ -65,6 +65,7 @@ type TestsConfig struct {
 // CoreConfig holds core settings.
 type CoreConfig struct {
 	Debug             bool   `yaml:"debug"`
+	LLMEnabled        bool   `yaml:"llm_enabled"`      // call claude -p for semantic snapshots; default false (uses deterministic fallback)
 	ClaudeTimeoutSecs int    `yaml:"claude_timeout"`   // seconds; 0 = use default (30)
 	StaleAfterDays    int    `yaml:"stale_after_days"` // snapshots older than this are flagged stale; 0 disables
 	Editor            string `yaml:"editor"`           // preferred editor; falls back to $VISUAL, $EDITOR, auto-detect
@@ -103,6 +104,7 @@ func DefaultConfig() *Config {
 type partialConfig struct {
 	Core struct {
 		Debug             *bool   `yaml:"debug"`
+		LLMEnabled        *bool   `yaml:"llm_enabled"`
 		ClaudeTimeoutSecs *int    `yaml:"claude_timeout"`
 		StaleAfterDays    *int    `yaml:"stale_after_days"`
 		Editor            *string `yaml:"editor"`
@@ -152,6 +154,9 @@ func applyPartial(base *Config, pc *partialConfig) *Config {
 	result := *base
 	if pc.Core.Debug != nil {
 		result.Core.Debug = *pc.Core.Debug
+	}
+	if pc.Core.LLMEnabled != nil {
+		result.Core.LLMEnabled = *pc.Core.LLMEnabled
 	}
 	if pc.Core.ClaudeTimeoutSecs != nil {
 		result.Core.ClaudeTimeoutSecs = *pc.Core.ClaudeTimeoutSecs

@@ -779,6 +779,7 @@ func showEffectiveConfig(projectDir string) error {
 	}
 
 	printField("core.debug", effective.Core.Debug, sources.Debug)
+	printField("core.llm_enabled", effective.Core.LLMEnabled, sources.LLMEnabled)
 	printField("core.stale_after_days", effective.Core.StaleAfterDays, sources.StaleAfterDays)
 	editorDisplay := effective.Core.Editor
 	if editorDisplay == "" {

@@ -72,6 +72,7 @@ func (s FieldSource) String() string {
 // ConfigSources tracks the source of each config field.
 type ConfigSources struct {
 	Debug                  FieldSource
+	LLMEnabled             FieldSource
 	StaleAfterDays         FieldSource
 	Editor                 FieldSource
 	SnapshotTodos          FieldSource
@@ -102,6 +103,10 @@ func EffectiveConfigWithSources(projectRoot string) (*Config, *ConfigSources, er
 	if globalPartial.Core.Debug != nil {
 		cfg.Core.Debug = *globalPartial.Core.Debug
 		sources.Debug = SourceGlobal
+	}
+	if globalPartial.Core.LLMEnabled != nil {
+		cfg.Core.LLMEnabled = *globalPartial.Core.LLMEnabled
+		sources.LLMEnabled = SourceGlobal
 	}
 	if globalPartial.Core.ClaudeTimeoutSecs != nil {
 		cfg.Core.ClaudeTimeoutSecs = *globalPartial.Core.ClaudeTimeoutSecs
@@ -176,6 +181,10 @@ func EffectiveConfigWithSources(projectRoot string) (*Config, *ConfigSources, er
 		if localPartial.Core.Debug != nil {
 			cfg.Core.Debug = *localPartial.Core.Debug
 			sources.Debug = SourceLocal
+		}
+		if localPartial.Core.LLMEnabled != nil {
+			cfg.Core.LLMEnabled = *localPartial.Core.LLMEnabled
+			sources.LLMEnabled = SourceLocal
 		}
 		if localPartial.Core.ClaudeTimeoutSecs != nil {
 			cfg.Core.ClaudeTimeoutSecs = *localPartial.Core.ClaudeTimeoutSecs
